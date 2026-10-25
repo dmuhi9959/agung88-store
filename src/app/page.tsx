@@ -1139,6 +1139,9 @@ function AdminView({
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [adminMods, setAdminMods] = useState<Mod[]>(mods)
+  const [editingMod, setEditingMod] = useState<Mod | null>(null)
+  const [detailMod, setDetailMod] = useState<Mod | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   // Refresh mods from props
   useEffect(() => {
@@ -1163,6 +1166,36 @@ function AdminView({
     } finally {
       setDeletingId(null)
     }
+  }
+
+  // Toggle featured (highlight APK)
+  const handleToggleFeatured = async (mod: Mod) => {
+    try {
+      const res = await fetch(`/api/mods/${mod.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ featured: !mod.featured }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        // Update local state
+        setAdminMods((prev) => prev.map((m) =>
+          m.id === mod.id ? { ...m, featured: !m.featured } : m
+        ))
+        toast.success(`"${mod.name}" ${!mod.featured ? 'ditandai sebagai Featured' : 'dihapus dari Featured'}`)
+      } else if (res.status === 403) {
+        toast.error('Sesi admin berakhir. Login ulang.')
+      } else {
+        toast.error(json.error || 'Gagal update')
+      }
+    } catch {
+      toast.error('Gagal terhubung ke server')
+    }
+  }
+
+  const handleOpenDetail = (mod: Mod) => {
+    setDetailMod(mod)
+    setDetailOpen(true)
   }
 
   const totalDownloads = adminMods.reduce((s, m) => s + m.downloads, 0)
@@ -1218,10 +1251,11 @@ function AdminView({
         Upload APK Baru
       </Button>
 
-      {/* APK list with delete */}
+      {/* APK list with actions */}
       <div className="space-y-2">
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Daftar APK ({adminMods.length})
+        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center justify-between">
+          <span>Daftar APK ({adminMods.length})</span>
+          <span className="text-[10px] normal-case">Klik card untuk detail</span>
         </div>
         {adminMods.length === 0 ? (
           <Card className="p-8 text-center">
@@ -1230,13 +1264,25 @@ function AdminView({
           </Card>
         ) : (
           adminMods.map((mod) => (
-            <Card key={mod.id} className="p-3 flex items-center gap-3 hover:border-primary/30 transition-colors">
-              <div className="size-10 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center shrink-0">
-                <Package className="h-5 w-5 text-primary" />
+            <Card
+              key={mod.id}
+              className="p-3 flex items-center gap-3 hover:border-primary/40 hover:bg-accent/30 transition-colors cursor-pointer"
+              onClick={() => handleOpenDetail(mod)}
+            >
+              {/* Icon APK - pakai icon asli kalau ada */}
+              <div className="size-12 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
+                {mod.iconUrl ? (
+                   
+                  <img src={mod.iconUrl} alt={mod.name} className="w-full h-full object-cover" />
+                ) : (
+                  <Package className="h-6 w-6 text-primary" />
+                )}
               </div>
+
+              {/* Info APK - tengah, bisa klik untuk detail */}
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{mod.name}</div>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
                   <Badge variant="outline" className="text-[10px] h-4 px-1.5">{mod.version}</Badge>
                   <span className="flex items-center gap-0.5">
                     <Download className="h-2.5 w-2.5" />
@@ -1244,27 +1290,46 @@ function AdminView({
                   </span>
                   {mod.fileSize && <span>{mod.fileSize}</span>}
                   {mod.featured && (
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-0.5">
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-0.5 bg-amber-500/15 text-amber-600 dark:text-amber-400">
                       <Star className="h-2 w-2 fill-amber-500 text-amber-500" />
                       Featured
                     </Badge>
                   )}
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                disabled={deletingId === mod.id}
-                onClick={() => handleDelete(mod)}
-                aria-label={`Hapus ${mod.name}`}
-              >
-                {deletingId === mod.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
+
+              {/* Action buttons - kanan */}
+              <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                {/* Toggle Featured */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`size-8 ${mod.featured ? 'text-amber-500' : 'text-muted-foreground'}`}
+                  disabled={deletingId === mod.id}
+                  onClick={() => handleToggleFeatured(mod)}
+                  title={mod.featured ? 'Hapus dari Featured' : 'Tandai sebagai Featured'}
+                  aria-label="Toggle featured"
+                >
+                  <Star className={`h-4 w-4 ${mod.featured ? 'fill-amber-500' : ''}`} />
+                </Button>
+
+                {/* Tombol Hapus */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  disabled={deletingId === mod.id}
+                  onClick={() => handleDelete(mod)}
+                  title="Hapus APK"
+                  aria-label="Hapus"
+                >
+                  {deletingId === mod.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </Card>
           ))
         )}
@@ -1278,6 +1343,31 @@ function AdminView({
           setShowUploadForm(false)
           onRefresh()
         }}
+      />
+
+      {/* Detail Dialog - klik card untuk lihat detail */}
+      <DetailDialog
+        mod={detailMod}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onDownload={() => {
+          if (detailMod) {
+            // Trigger download di tab baru
+            if (detailMod.filePath) {
+              const a = document.createElement('a')
+              a.href = detailMod.filePath
+              a.download = detailMod.fileName || detailMod.name
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+            }
+          }
+        }}
+        onDelete={(m) => {
+          setDetailOpen(false)
+          handleDelete(m)
+        }}
+        isAdmin={true}
       />
     </div>
   )
