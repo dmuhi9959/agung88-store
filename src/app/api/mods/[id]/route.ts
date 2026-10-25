@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { isAdmin } from '@/lib/auth'
 import { unlink } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
@@ -27,11 +28,20 @@ export async function GET(
   }
 }
 
+// PUT - hanya admin
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const admin = await isAdmin()
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, error: 'Akses ditolak. Login admin diperlukan.' },
+        { status: 403 }
+      )
+    }
+
     const { id } = await params
     const body = await req.json()
 
@@ -74,11 +84,20 @@ export async function PUT(
   }
 }
 
+// DELETE - hanya admin
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const admin = await isAdmin()
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, error: 'Akses ditolak. Login admin diperlukan.' },
+        { status: 403 }
+      )
+    }
+
     const { id } = await params
     const existing = await db.mod.findUnique({ where: { id } })
     if (!existing) {

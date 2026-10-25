@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { v4 as uuidv4 } from 'uuid'
+import { isAdmin } from '@/lib/auth'
 
 function slugify(text: string): string {
   return text
@@ -17,20 +18,11 @@ function slugify(text: string): string {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const category = searchParams.get('category')
-    const stbType = searchParams.get('stbType')
     const search = searchParams.get('search')
-    const featured = searchParams.get('featured')
     const limit = searchParams.get('limit')
 
     const where: any = { published: true }
 
-    if (category && category !== 'all') {
-      where.category = category
-    }
-    if (stbType && stbType !== 'all') {
-      where.stbType = stbType
-    }
     if (search) {
       where.OR = [
         { name: { contains: search } },
@@ -38,9 +30,6 @@ export async function GET(req: NextRequest) {
         { tags: { contains: search } },
         { developer: { contains: search } },
       ]
-    }
-    if (featured === 'true') {
-      where.featured = true
     }
 
     const mods = await db.mod.findMany({
@@ -59,8 +48,18 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// POST - hanya admin
 export async function POST(req: NextRequest) {
   try {
+    // Check admin access
+    const admin = await isAdmin()
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, error: 'Akses ditolak. Login admin diperlukan.' },
+        { status: 403 }
+      )
+    }
+
     const body = await req.json()
 
     const {
@@ -80,9 +79,9 @@ export async function POST(req: NextRequest) {
       featured,
     } = body
 
-    if (!name || !description || !version || !developer || !category || !stbType) {
+    if (!name || !description || !version || !developer) {
       return NextResponse.json(
-        { success: false, error: 'Field wajib belum lengkap' },
+        { success: false, error: 'Field wajib belum lengkap (nama, deskripsi, versi, developer)' },
         { status: 400 }
       )
     }
@@ -101,8 +100,8 @@ export async function POST(req: NextRequest) {
         description: String(description),
         version: String(version),
         developer: String(developer),
-        category: String(category),
-        stbType: String(stbType),
+        category: category ? String(category) : 'app',
+        stbType: stbType ? String(stbType) : 'android-tv',
         tags: tags ? String(tags) : '',
         fileSize: fileSize ? String(fileSize) : '',
         fileName: fileName ? String(fileName) : '',
