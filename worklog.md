@@ -94,3 +94,52 @@ Stage Summary:
 - Panduan install di STB tersedia 2 metode: USB Flashdisk dan ADB Sideload
 - ZIP project siap diakses di /downloads/stb-mod-store-android-project.zip
 - Semua verifikasi browser pass, tidak ada runtime error
+
+---
+Task ID: STB-Mod-Store-Build-APK
+Agent: Main Agent (Z.ai)
+Task: User complain karena ZIP yang di-download adalah source code project Android Studio, bukan APK jadi. Build APK siap install.
+
+Work Log:
+- User upload file workspace-8b701ad6 yang ternyata adalah tar archive (6.1MB) berisi source code project Android Studio yang sebelumnya saya buat
+- User tidak ngerti bahwa ZIP project Android Studio itu BUKAN APK - itu source code yang harus di-build dulu dengan Android Studio
+- Keputusan: install Android SDK di server, build APK sendiri, dan sediakan APK siap download langsung dari aplikasi
+- Download Android cmdline-tools dari Google (147MB ZIP)
+- Extract ke $HOME/android-sdk/cmdline-tools/latest/
+- Accept licenses dengan `yes | sdkmanager --licenses`
+- Install packages: platform-tools, platforms;android-34, build-tools;34.0.0
+- Setup gradlew script di project Android (download gradle-wrapper.jar dari GitHub)
+- Build APK dengan `./gradlew assembleDebug --no-daemon` (menggunakan Gradle 8.2 + JDK 21)
+- Build berhasil! APK 5.6MB di app/build/outputs/apk/debug/app-debug.apk
+- Verifikasi APK dengan aapt2 dan apksigner:
+  * Package: com.stbmodstore.app
+  * Version: 1.0.0 (build 1)
+  * Min SDK: 21 (Android 5.0 Lollipop)
+  * Target SDK: 34 (Android 14)
+  * Label: "STB Mod Store"
+  * Signed dengan v1 + v2 scheme (debug signature)
+  * 871 files di dalam APK
+- Copy APK ke /public/downloads/stb-mod-store-v1.0.0.apk supaya bisa diakses dari browser
+- Update page.tsx DownloadGuideView untuk tambah section "APK Direct Download" di paling atas:
+  * Card dengan border tebal dan gradient emerald
+  * Badge "DOWNLOAD APK SIAP PAKAI" + "v1.0.0 • 5.6 MB"
+  * Heading "STB Mod Store APK"
+  * 4 stats grid (Version, Ukuran, Min. Android, Package)
+  * Tombol "Download APK (5.6 MB)" yang langsung download file .apk
+  * Catatan tentang debug signature & enable "Unknown sources"
+  * QR Code otomatis untuk scan dengan HP/STB
+- Fix issue: service worker caching page lama, perlu unregister SW + clear caches di browser
+- Verifikasi dengan agent-browser:
+  * Section "STB Mod Store APK" muncul di h2 list
+  * Tombol download APK ter-render (1 element dengan href /downloads/stb-mod-store-v1.0.0.apk)
+  * APK bisa di-download: HTTP 200, 5835475 bytes (5.6 MB)
+  * Teks "DOWNLOAD APK SIAP PAKAI", "v1.0.0", "5.6 MB" semua muncul
+- Lint bersih (0 errors, 0 warnings)
+
+Stage Summary:
+- APK JADI tersedia untuk download langsung dari aplikasi (tidak perlu Android Studio lagi)
+- Lokasi APK: /public/downloads/stb-mod-store-v1.0.0.apk (5.6 MB)
+- Akses dari aplikasi: Menu "Download APK" → section paling atas "STB Mod Store APK" → klik "Download APK (5.6 MB)"
+- APK info: com.stbmodstore.app v1.0.0, min Android 5.0, signed debug, 871 files
+- Build environment siap: jika ada update aplikasi, bisa rebuild APK dengan gradle assembleDebug
+- ZIP source code project tetap tersedia untuk user yang ingin customize build sendiri

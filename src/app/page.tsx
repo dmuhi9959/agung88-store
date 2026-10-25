@@ -1823,11 +1823,106 @@ function DownloadGuideView({ onBack }: { onBack: () => void }) {
             <h1 className="text-2xl md:text-3xl font-bold">Download Aplikasi</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Install STB Mod Store di Android TV, STB, HP Android, atau PC Anda.
-              Pilih salah satu dari 4 metode di bawah ini.
+              APK siap pakai tersedia di bawah, atau pilih metode lain sesuai kebutuhan.
             </p>
           </div>
         </div>
       </div>
+
+      {/* APK Direct Download - PALING UTAMA (v2) */}
+      <Card className="p-6 border-2 border-primary bg-gradient-to-br from-emerald-500/10 to-teal-500/10 relative overflow-hidden">
+        <div className="absolute top-0 right-0 size-40 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+        <div className="relative flex flex-col md:flex-row md:items-center gap-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-3">
+              <Badge className="gap-1 bg-primary text-primary-foreground">
+                <DownloadIcon className="h-3 w-3" />
+                DOWNLOAD APK SIAP PAKAI
+              </Badge>
+              <Badge variant="outline" className="gap-1">
+                <CheckCircle className="h-3 w-3 text-emerald-500" />
+                v1.0.0 • 5.6 MB
+              </Badge>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-bold mb-3 flex items-center gap-2">
+              <FileArchive className="h-7 w-7 text-primary" />
+              STB Mod Store APK
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4 max-w-2xl">
+              APK siap install langsung di STB / Android TV / HP Android Anda.
+              Sudah di-build dan signed. Tinggal download, install, dan pakai. Tanpa perlu coding atau Android Studio.
+            </p>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="rounded-lg bg-background/50 backdrop-blur p-3">
+                <div className="text-xs text-muted-foreground">Version</div>
+                <div className="text-sm font-bold mt-0.5">1.0.0</div>
+              </div>
+              <div className="rounded-lg bg-background/50 backdrop-blur p-3">
+                <div className="text-xs text-muted-foreground">Ukuran</div>
+                <div className="text-sm font-bold mt-0.5">5.6 MB</div>
+              </div>
+              <div className="rounded-lg bg-background/50 backdrop-blur p-3">
+                <div className="text-xs text-muted-foreground">Min. Android</div>
+                <div className="text-sm font-bold mt-0.5">5.0 (Lollipop)</div>
+              </div>
+              <div className="rounded-lg bg-background/50 backdrop-blur p-3">
+                <div className="text-xs text-muted-foreground">Package</div>
+                <div className="text-sm font-bold mt-0.5 font-mono text-[10px]">com.stbmodstore.app</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <a href="/downloads/stb-mod-store-v1.0.0.apk" download>
+                <Button size="lg" className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30">
+                  <DownloadIcon className="h-5 w-5" />
+                  Download APK (5.6 MB)
+                </Button>
+              </a>
+              <Button
+                variant="outline"
+                size="lg"
+                className="gap-2"
+                onClick={handleCopyLink}
+              >
+                {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
+                {copied ? 'Tersalin!' : 'Salin Link APK'}
+              </Button>
+            </div>
+
+            <div className="mt-4 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <strong className="text-amber-700 dark:text-amber-300">Catatan:</strong>{' '}
+                APK ini menggunakan debug signature (untuk testing). Setelah install, mungkin perlu
+                enable <strong>"Install dari sumber tidak dikenal"</strong> di Settings → Security STB Anda.
+              </div>
+            </div>
+          </div>
+
+          {/* QR Code for APK */}
+          {origin && (
+            <div className="flex flex-col items-center gap-2 shrink-0">
+              <div className="p-3 rounded-xl bg-white border-2 border-emerald-500/30 shadow-lg">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&bgcolor=ffffff&color=059669&data=${encodeURIComponent(origin + '/downloads/stb-mod-store-v1.0.0.apk')}`}
+                  alt="QR Code APK"
+                  width={180}
+                  height={180}
+                  className="rounded-md"
+                />
+              </div>
+              <div className="text-xs text-center text-muted-foreground max-w-[180px]">
+                <div className="flex items-center gap-1 justify-center font-medium">
+                  <QrCode className="h-3 w-3" />
+                  Scan untuk download APK
+                </div>
+                <div className="mt-1">Arahkan kamera HP/STB ke QR code untuk download langsung</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Quick install via PWA */}
       <Card className="p-6 border-primary/30 bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
