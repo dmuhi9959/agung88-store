@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">space-z.ai</domain>
+        <domain includeSubdomains="true">preview-chat-8b701ad6-a5bc-4a95-9c56-ea87c9141bb1.space-z.ai</domain>
+        <pin-set expiration="2027-12-31">
+            <!-- TODO: Replace with actual SSL pin if needed -->
+        </pin-set>
+    </domain-config>
+</network-security-config>

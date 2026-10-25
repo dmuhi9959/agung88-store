@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Boxes, Search, Upload, Moon, Sun, Menu, X, Download, Star,
@@ -9,7 +9,9 @@ import {
   CheckCircle2, AlertCircle, FileUp, Image as ImageIcon, Loader2,
   Home as HomeIcon, Package, Sparkles, ArrowRight, Calendar, User, Tag,
   HardDrive, Smartphone, Filter, Github, Heart, Share2, Pencil,
-  ExternalLink, Folder
+  ExternalLink, Folder, Download as DownloadIcon, QrCode, FileArchive,
+  Terminal, Monitor, Tv, CheckCircle, Info, Chrome, Apple, PlayCircle,
+  PackageOpen, BookOpen
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,7 +48,7 @@ import {
 } from '@/lib/constants'
 import type { Mod, UploadResult } from '@/lib/types'
 
-type View = 'store' | 'upload' | 'my-uploads'
+type View = 'store' | 'upload' | 'my-uploads' | 'download-guide'
 
 const ICON_MAP: Record<string, any> = {
   Boxes, CircuitBoard, AppWindow, LayoutGrid, FileVideo, Shield,
@@ -237,6 +239,15 @@ export default function Home() {
             </Button>
 
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => switchView('download-guide')}
+              className="hidden sm:inline-flex gap-2"
+            >
+              <DownloadIcon className="h-4 w-4" />
+              APK
+            </Button>
+            <Button
               variant="default"
               size="sm"
               onClick={() => switchView('upload')}
@@ -332,6 +343,11 @@ export default function Home() {
               onDownload={handleDownload}
             />
           )}
+          {view === 'download-guide' && (
+            <DownloadGuideView
+              onBack={() => switchView('store')}
+            />
+          )}
         </main>
       </div>
 
@@ -417,6 +433,21 @@ function SidebarContent({
             <Package className="h-4 w-4" />
             Mod Saya
             <Badge variant="outline" className="ml-auto text-[10px] h-5">{stats.totalMods}</Badge>
+          </button>
+          <button
+            onClick={() => switchView('download-guide')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              view === 'download-guide'
+                ? 'bg-primary text-primary-foreground'
+                : 'hover:bg-accent text-foreground/80'
+            }`}
+          >
+            <DownloadIcon className="h-4 w-4" />
+            Download APK
+            <Badge variant="secondary" className="ml-auto text-[10px] h-5 gap-1">
+              <Sparkles className="h-2.5 w-2.5" />
+              APP
+            </Badge>
           </button>
         </nav>
       </div>
@@ -1719,6 +1750,383 @@ function MyUploadsView({
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+function DownloadGuideView({ onBack }: { onBack: () => void }) {
+  const [origin, setOrigin] = useState('')
+  const [installPromptAvailable, setInstallPromptAvailable] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const hasInitRef = useRef(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || hasInitRef.current) return
+    hasInitRef.current = true
+
+    // Read origin synchronously, defer setState via microtask to avoid cascading render
+    const detectedOrigin = window.location.origin
+    queueMicrotask(() => {
+      setOrigin(detectedOrigin)
+    })
+
+    // Check if PWA install is available
+    const handler = (e: any) => {
+      e.preventDefault()
+      queueMicrotask(() => setInstallPromptAvailable(true))
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstallPWA = async () => {
+    // Trigger the deferred prompt if available
+    const evt = new Event('beforeinstallprompt') as any
+    window.dispatchEvent(evt)
+    // Fallback: try opening install via Browser API
+    alert('Klik icon Install (⊕) di address bar browser, atau pilih menu → Install app / Add to Home screen.')
+  }
+
+  const handleCopyLink = () => {
+    if (origin) {
+      navigator.clipboard.writeText(origin)
+        .then(() => {
+          setCopied(true)
+          toast.success('Link berhasil disalin!')
+          setTimeout(() => setCopied(false), 2000)
+        })
+        .catch(() => toast.error('Gagal menyalin link'))
+    }
+  }
+
+  const qrUrl = origin
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&bgcolor=ffffff&color=059669&data=${encodeURIComponent(origin)}`
+    : ''
+
+  const androidProjectUrl = '/downloads/stb-mod-store-android-project.zip'
+  const pwaBuilderUrl = 'https://www.pwabuilder.com/'
+  const apkIconUrl = '/icons/icon-512x512.png'
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 md:px-6 py-8 space-y-8">
+      {/* Header */}
+      <div>
+        <Button variant="ghost" size="sm" onClick={onBack} className="mb-3 gap-1 -ml-2">
+          <ArrowRight className="h-4 w-4 rotate-180" />
+          Kembali ke Store
+        </Button>
+        <div className="flex flex-col md:flex-row md:items-center gap-4 mb-2">
+          <div className="size-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <Tv className="h-8 w-8 text-white" />
+          </div>
+          <div className="flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold">Download Aplikasi</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Install STB Mod Store di Android TV, STB, HP Android, atau PC Anda.
+              Pilih salah satu dari 4 metode di bawah ini.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick install via PWA */}
+      <Card className="p-6 border-primary/30 bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="secondary" className="gap-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                <Sparkles className="h-3 w-3" />
+                PALING CEPAT
+              </Badge>
+              <Badge variant="outline">Tanpa build APK</Badge>
+            </div>
+            <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+              <Chrome className="h-5 w-5 text-primary" />
+              Install sebagai PWA (1 klik)
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Install langsung dari browser. PWA berfungsi seperti aplikasi native:
+              ada icon di home screen, full screen, dan bisa offline (sebagian).
+              Cocok untuk HP Android dan Android TV yang sudah ada Chrome/Edge.
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleInstallPWA} className="gap-2 bg-primary hover:bg-primary/90">
+                <DownloadIcon className="h-4 w-4" />
+                Install PWA Sekarang
+              </Button>
+              <Button variant="outline" onClick={handleCopyLink} className="gap-2">
+                {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Share2 className="h-4 w-4" />}
+                {copied ? 'Tersalin!' : 'Salin Link'}
+              </Button>
+            </div>
+
+            {!installPromptAvailable && (
+              <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
+                <Info className="h-3 w-3" />
+                Jika tombol install tidak muncul, gunakan menu browser: <strong>⋮ → Install app</strong> (Chrome Android) atau <strong>Share → Add to Home Screen</strong> (iOS Safari).
+              </p>
+            )}
+          </div>
+
+          {/* QR Code */}
+          {qrUrl && (
+            <div className="flex flex-col items-center gap-2">
+              <div className="p-3 rounded-xl bg-white border-2 border-emerald-500/20">
+                { }
+                <img src={qrUrl} alt="QR Code" width={160} height={160} className="rounded-md" />
+              </div>
+              <div className="text-xs text-center text-muted-foreground">
+                <div className="flex items-center gap-1 justify-center">
+                  <QrCode className="h-3 w-3" />
+                  Scan dengan HP / STB
+                </div>
+                <div className="mt-1 font-mono text-[10px]">{origin}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* 3 Methods Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Method 1: PWABuilder */}
+        <Card className="p-5 flex flex-col">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="size-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+              <PackageOpen className="h-5 w-5 text-purple-500" />
+            </div>
+            <Badge variant="outline" className="text-xs">Metode 1</Badge>
+          </div>
+          <h3 className="font-bold mb-2 flex items-center gap-1">
+            PWABuilder
+            <Badge variant="secondary" className="text-[10px] h-4 ml-1">FREE</Badge>
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4 flex-1">
+            Generate APK otomatis dari PWA di website PWABuilder.com (Microsoft).
+            Tanpa coding, hasil APK langsung jadi. Cocok untuk pemula.
+          </p>
+          <ol className="text-xs space-y-1 mb-4 text-muted-foreground">
+            <li>1. Buka pwabuilder.com</li>
+            <li>2. Paste link aplikasi ini</li>
+            <li>3. Klik "Build My PWA" → pilih Android</li>
+            <li>4. Download APK siap install</li>
+          </ol>
+          <a href={pwaBuilderUrl} target="_blank" rel="noopener noreferrer">
+            <Button size="sm" variant="outline" className="w-full gap-2">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Buka PWABuilder
+            </Button>
+          </a>
+        </Card>
+
+        {/* Method 2: Android Studio Project */}
+        <Card className="p-5 flex flex-col border-primary/40">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="size-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <FileArchive className="h-5 w-5 text-primary" />
+            </div>
+            <Badge variant="secondary" className="text-xs gap-1">
+              <Sparkles className="h-2.5 w-2.5" />
+              Metode 2
+            </Badge>
+          </div>
+          <h3 className="font-bold mb-2 flex items-center gap-1">
+            Android Studio Project
+            <Badge variant="secondary" className="text-[10px] h-4 ml-1">TEMPLATE</Badge>
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4 flex-1">
+            Download template project Android Studio (WebView wrapper) yang sudah
+            siap build. Tinggal buka di Android Studio, klik Build APK, jadi!
+            Cocok untuk developer / yang sudah punya Android Studio.
+          </p>
+          <ol className="text-xs space-y-1 mb-4 text-muted-foreground">
+            <li>1. Download ZIP di bawah (~50KB)</li>
+            <li>2. Extract & buka di Android Studio</li>
+            <li>3. Tunggu Gradle sync selesai</li>
+            <li>4. Klik Build → Build APK</li>
+          </ol>
+          <a href={androidProjectUrl} download>
+            <Button size="sm" className="w-full gap-2 bg-primary hover:bg-primary/90">
+              <DownloadIcon className="h-3.5 w-3.5" />
+              Download Project ZIP
+            </Button>
+          </a>
+        </Card>
+
+        {/* Method 3: Bubblewrap CLI */}
+        <Card className="p-5 flex flex-col">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="size-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <Terminal className="h-5 w-5 text-blue-500" />
+            </div>
+            <Badge variant="outline" className="text-xs">Metode 3</Badge>
+          </div>
+          <h3 className="font-bold mb-2 flex items-center gap-1">
+            Bubblewrap CLI
+            <Badge variant="secondary" className="text-[10px] h-4 ml-1">Google</Badge>
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4 flex-1">
+            Generate TWA (Trusted Web Activity) APK resmi dari Google.
+            Hasil APK signed dan siap upload ke Play Store.
+            Butuh Node.js + Java JDK 11.
+          </p>
+          <ol className="text-xs space-y-1 mb-4 text-muted-foreground">
+            <li>1. Install Node.js + Java JDK 11</li>
+            <li>2. <code className="text-[10px] bg-muted px-1 rounded">npm i -g @bubblewrap/cli</code></li>
+            <li>3. <code className="text-[10px] bg-muted px-1 rounded">bubblewrap init --manifest={origin}/manifest.json</code></li>
+            <li>4. <code className="text-[10px] bg-muted px-1 rounded">bubblewrap build</code></li>
+          </ol>
+          <a href="https://github.com/GoogleChromeLabs/bubblewrap" target="_blank" rel="noopener noreferrer">
+            <Button size="sm" variant="outline" className="w-full gap-2">
+              <BookOpen className="h-3.5 w-3.5" />
+              Lihat Dokumentasi
+            </Button>
+          </a>
+        </Card>
+      </div>
+
+      {/* Installation Guide for STB/Android TV */}
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="size-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+            <Tv className="h-5 w-5 text-amber-500" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Cara Install di Android TV / STB</h2>
+            <p className="text-xs text-muted-foreground">
+              Panduan step-by-step install APK di STB / Android TV Box
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Method A: USB Flashdisk */}
+          <div className="rounded-xl border border-border p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">A</Badge>
+              <h3 className="font-semibold text-sm">Via USB Flashdisk</h3>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-2 list-decimal pl-4">
+              <li>Download APK dari metode 1, 2, atau 3 di atas</li>
+              <li>Copy file APK ke USB flashdisk</li>
+              <li>Colokkan USB ke port STB / Android TV</li>
+              <li>Buka <strong>File Manager</strong> di STB (atau X-plore / FX File Explorer)</li>
+              <li>Pilih USB storage → cari file APK</li>
+              <li>Klik file APK → <strong>Install</strong></li>
+              <li>Jika muncul "Unknown sources", allow di Settings → Security</li>
+              <li>Tunggu install selesai → buka aplikasi dari menu STB</li>
+            </ol>
+            <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-2 text-xs text-amber-700 dark:text-amber-300">
+              <strong>Tips:</strong> Pastikan STB Anda mendukung "Unknown sources" di Settings → Security.
+            </div>
+          </div>
+
+          {/* Method B: ADB Sideload */}
+          <div className="rounded-xl border border-border p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="bg-blue-500/10 text-blue-700 dark:text-blue-300">B</Badge>
+              <h3 className="font-semibold text-sm">Via ADB Sideload (PC)</h3>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-2 list-decimal pl-4">
+              <li>Download APK + install ADB di PC (Android Platform Tools)</li>
+              <li>Enable <strong>Developer Options</strong> di STB: Settings → About → tap Build Number 7x</li>
+              <li>Enable <strong>USB Debugging</strong> di Settings → Developer Options</li>
+              <li>Hubungkan STB ke PC dengan kabel USB (atau via IP network ADB)</li>
+              <li>Buka Command Prompt / Terminal di PC</li>
+              <li><code className="text-[10px] bg-muted px-1 rounded">adb connect &lt;IP_STB&gt;</code> (untuk network)</li>
+              <li><code className="text-[10px] bg-muted px-1 rounded">adb install stb-mod-store.apk</code></li>
+              <li>Tunggu "Success" → aplikasi muncul di menu STB</li>
+            </ol>
+            <div className="rounded-lg bg-blue-500/5 border border-blue-500/20 p-2 text-xs text-blue-700 dark:text-blue-300">
+              <strong>Tips:</strong> Download ADB dari <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" rel="noopener noreferrer" className="underline">developer.android.com</a>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Platform Support */}
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Monitor className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-bold">Kompatibilitas Platform</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { icon: Tv, name: "Android TV / STB", support: "Android 5.0+", color: "text-emerald-500" },
+            { icon: Smartphone, name: "HP Android", support: "Android 5.0+", color: "text-emerald-500" },
+            { icon: Apple, name: "iPhone / iPad", support: "PWA only (iOS 11.3+)", color: "text-blue-500" },
+            { icon: Monitor, name: "PC Windows/Mac", support: "PWA (Chrome/Edge)", color: "text-purple-500" },
+          ].map((p, i) => {
+            const Icon = p.icon
+            return (
+              <div key={i} className="rounded-xl border border-border p-4 text-center">
+                <Icon className={`h-7 w-7 mx-auto mb-2 ${p.color}`} />
+                <div className="text-sm font-semibold mb-1">{p.name}</div>
+                <div className="text-[10px] text-muted-foreground">{p.support}</div>
+              </div>
+            )
+          })}
+        </div>
+      </Card>
+
+      {/* FAQ */}
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Info className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-bold">FAQ - Pertanyaan Umum</h2>
+        </div>
+        <div className="space-y-3">
+          {[
+            {
+              q: "Apakah aplikasi ini gratis?",
+              a: "Ya, 100% gratis. Aplikasi ini dibuat untuk komunitas STB Indonesia. Anda juga bisa upload mod gratis dan gratis di-download user lain."
+            },
+            {
+              q: "Apakah butuh internet untuk pakai?",
+              a: "Ya, butuh internet untuk download mod baru. Tapi setelah dibuka sekali, beberapa halaman (store list, mod detail) bisa diakses offline berkat PWA caching."
+            },
+            {
+              q: "Kenapa APK lebih besar dari PWA?",
+              a: "APK berisi WebView browser + application wrapper (~5-10MB). PWA hanya butuh browser yang sudah ada di STB, jadi tidak perlu install ulang."
+            },
+            {
+              q: "Apakah aplikasi aman?",
+              a: "Aplikasi ini hanya me-load website STB Mod Store. Tidak ada tracking, tidak ada iklan, tidak ada permission berbahaya. Source code bisa Anda audit."
+            },
+            {
+              q: "Bisa di-set sebagai launcher default STB?",
+              a: "Bisa, setelah install APK, masuk ke Settings → Default Apps → Home App → pilih STB Mod Store. Aplikasi akan otomatis terbuka saat STB dinyalakan."
+            },
+            {
+              q: "Bagaimana cara update aplikasi?",
+              a: "PWA: update otomatis saat buka aplikasi. APK: re-install dengan APK versi baru, atau gunakan fitur update di dalam aplikasi (coming soon)."
+            }
+          ].map((faq, i) => (
+            <details key={i} className="group rounded-lg border border-border p-3">
+              <summary className="cursor-pointer text-sm font-medium flex items-center justify-between gap-2">
+                <span>{faq.q}</span>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-90 shrink-0" />
+              </summary>
+              <p className="text-xs text-muted-foreground mt-2 pl-1">{faq.a}</p>
+            </details>
+          ))}
+        </div>
+      </Card>
+
+      {/* Footer notice */}
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-start gap-3">
+        <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <div className="font-medium mb-1">Sudah siap download!</div>
+          <p className="text-xs text-muted-foreground">
+            Pilih metode yang paling sesuai dengan kebutuhan Anda. Untuk pemula,
+            gunakan <strong>PWA (1 klik)</strong>. Untuk yang ingin APK standalone,
+            gunakan <strong>PWABuilder</strong>. Untuk developer, gunakan
+            <strong> Android Studio Project</strong> atau <strong>Bubblewrap CLI</strong>.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
