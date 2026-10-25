@@ -197,3 +197,65 @@ Stage Summary:
 - Session admin valid 7 hari, HTTP-only cookie (anti XSS)
 - Akses admin: klik tombol Admin di header (kanan atas) → login → masuk Admin Panel
 - API protection: GET /api/mods public, POST/PUT/DELETE butuh admin session (403 Forbidden jika tidak)
+
+---
+Task ID: STB-Mod-Store-Fix-Download
+Agent: Main Agent (Z.ai)
+Task: User complain: pas klik download RBTV ada teks "memulai download" tapi tidak bisa download, file tidak tersimpan. User minta: di bawah APK ada progress percentage dan file tersimpan di file manager.
+
+Work Log:
+- Update MainActivity.java dengan DownloadListener + DownloadManager native Android:
+  * SetDownloadListener di WebView - intercept semua link download
+  * startDownloadWithManager(): pakai Android DownloadManager (native) untuk download file APK
+  * File otomatis tersimpan di folder Downloads/STB Mod Store/ (folder publik, kelihatan di File Manager)
+  * Progress bar real-time di bawah aplikasi (LinearLayout vertical dengan text + ProgressBar + percent text)
+  * BroadcastReceiver untuk detect download complete
+  * Auto-trigger install APK setelah download selesai (Intent ACTION_VIEW dengan MIME apk)
+  * Cookies dari WebView di-forward ke DownloadManager (untuk auth admin)
+  * Notifikasi system Android muncul selama download
+  * Permission: WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, REQUEST_INSTALL_PACKAGES, WAKE_LOCK, FOREGROUND_SERVICE, DOWNLOAD_WITHOUT_NOTIFICATION, ACCESS_WIFI_STATE
+- Update AndroidManifest.xml tambah permission yang diperlukan untuk download
+- Update page.tsx untuk tampilkan progress bar di card saat download:
+  * State downloadProgress per mod (Record<modId, {percent, loaded, total}>)
+  * handleDownload: 
+    - Cek WebView Android: trigger anchor download (DownloadManager handle)
+    - Browser desktop/mobile: fetch dengan streaming reader + progress real-time
+    - Throttle update 10fps supaya tidak lag di file besar
+    - Final update ke 100% dengan delay 500ms supaya user sempat lihat
+  * ApkCard component:
+    - Pass progress prop dari parent
+    - Tampilkan progress bar di bawah tombol Download APK saat isDownloading
+    - Text "Mengunduh APK..." + percent
+    - Progress bar horizontal gradient emerald dengan pulse animation
+    - Text "X MB / Y MB" + status "Sedang mengunduh..." atau "Selesai!"
+    - Tombol Download APK berubah jadi "Downloading... X%" saat proses
+    - Disabled saat downloading supaya tidak double-click
+- Rebuild APK store (v1.1.0):
+  * Fix compile error: hapus request.setVisibility() yang tidak ada di DownloadManager.Request
+  * Build sukses 22 detik
+  * APK 5.6 MB, version 1.0.0 (build 1)
+  * Signed dengan v1 + v2 scheme
+- Verifikasi dengan agent-browser:
+  * Klik Download APK di card RBTV+ → progress bar muncul
+  * Tampil "Mengunduh APK..." + "100%" + "14.8 MB / 14.8 MB" + "Selesai!"
+  * Tombol berubah jadi "Downloading... 100%"
+  * Toast "Memulai download: RBTV+" muncul
+  * Setelah selesai, toast "Download selesai" muncul
+- Lint bersih (0 errors, 0 warnings)
+
+Stage Summary:
+- APK store v1.1.0 tersedia di:
+  * /home/z/my-project/download/stb-mod-store-v1.1.0.apk (5.6 MB)
+  * /home/z/my-project/public/downloads/stb-mod-store-v1.1.0.apk (5.6 MB)
+- Dalam APK store, saat user klik Download APK di card RBTV+:
+  * Android DownloadManager handle download (native Android)
+  * File tersimpan di folder Downloads/STB Mod Store/ (akses lewat File Manager)
+  * Progress bar real-time muncul di bawah aplikasi (text + bar + percent)
+  * Notifikasi system Android muncul selama proses
+  * Auto-trigger install APK setelah selesai (INTENT ACTION_VIEW)
+- Dalam aplikasi web (browser):
+  * Progress bar di bawah tombol Download APK di card
+  * Tampil percent + bytes loaded/total + status
+  * Tombol berubah "Downloading... X%" saat proses
+  * Disabled selama proses (anti double-click)
+  * File tersimpan ke folder Downloads default browser

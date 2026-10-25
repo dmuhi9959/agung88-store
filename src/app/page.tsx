@@ -77,33 +77,128 @@ export default function Home() {
     if (view === 'store') fetchMods()
   }, [view, fetchMods])
 
-  const handleDownload = useCallback(async (mod: Mod) => {
-    try {
-      const res = await fetch(`/api/download/${mod.id}`, { method: 'POST' })
-      const json = await res.json()
-      if (json.success) {
-        // Optimistic update
-        setMods((prev) => prev.map((m) => m.id === mod.id ? { ...m, downloads: json.data.downloads } : m))
-        if (selectedMod?.id === mod.id) {
-          setSelectedMod((prev) => prev ? { ...prev, downloads: json.data.downloads } : prev)
-        }
+  // Download progress tracker per mod (untuk progress bar di card)
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, { percent: number; loaded: number; total: number }>>({})
 
-        if (mod.filePath) {
-          const a = document.createElement('a')
-          a.href = mod.filePath
-          a.download = mod.fileName || mod.name
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          toast.success(`Memulai download: ${mod.name}`)
-        } else {
-          toast.info('File belum tersedia untuk diunduh')
+  const handleDownload = useCallback(async (mod: Mod) => {
+    // Trigger download counter first (tidak blocking)
+    fetch(`/api/download/${mod.id}`, { method: 'POST' })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success) {
+          setMods((prev) => prev.map((m) => m.id === mod.id ? { ...m, downloads: json.data.downloads } : m))
+          if (selectedMod?.id === mod.id) {
+            setSelectedMod((prev) => prev ? { ...prev, downloads: json.data.downloads } : prev)
+          }
         }
-      } else {
-        toast.error('Gagal memproses download')
+      })
+      .catch(() => {})
+
+    if (!mod.filePath) {
+      toast.info('File belum tersedia untuk diunduh')
+      return
+    }
+
+    // Resolve URL absolute (relatif ke origin)
+    const fileUrl = mod.filePath.startsWith('http')
+      ? mod.filePath
+      : window.location.origin + mod.filePath
+
+    // Cek apakah di WebView Android (punya DownloadManager)
+    // di WebView: anchor download tetap trigger DownloadListener
+    // di browser: gunakan fetch dengan progress
+    const isLikelyWebView = /; wv\)/.test(navigator.userAgent) || /Android.*Version\/\d/.test(navigator.userAgent)
+
+    if (isLikelyWebView) {
+      // WebView: trigger anchor download, DownloadManager handle sisanya
+      const a = document.createElement('a')
+      a.href = fileUrl
+      a.download = mod.fileName || mod.name
+      a.setAttribute('data-filename', mod.fileName || mod.name)
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      toast.success(`Memulai download: ${mod.name}`, {
+        description: 'Tunggu progress bar di bawah aplikasi',
+      })
+      return
+    }
+
+    // Browser: fetch dengan progress tracking
+    try {
+      setDownloadProgress((prev) => ({ ...prev, [mod.id]: { percent: 0, loaded: 0, total: 0 } }))
+      toast.info(`Memulai download: ${mod.name}`)
+
+      const response = await fetch(fileUrl)
+      if (!response.ok) throw new Error('Gagal mengunduh file')
+
+      const total = Number(response.headers.get('content-length')) || 0
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('Browser tidak mendukung streaming download')
+
+      const chunks: Uint8Array[] = []
+      let loaded = 0
+      let lastUpdate = Date.now()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        loaded += value.length
+        const percent = total > 0 ? Math.round((loaded / total) * 100) : 0
+        // Throttle update: max 10 fps supaya tidak lag di file besar
+        const now = Date.now()
+        if (now - lastUpdate > 100 || percent === 100) {
+          setDownloadProgress((prev) => ({
+            ...prev,
+            [mod.id]: { percent, loaded, total },
+          }))
+          lastUpdate = now
+          // Yield ke UI untuk render progress
+          await new Promise((r) => setTimeout(r, 0))
+        }
       }
-    } catch {
-      toast.error('Gagal terhubung ke server')
+
+      // Final update ke 100%
+      setDownloadProgress((prev) => ({
+        ...prev,
+        [mod.id]: { percent: 100, loaded, total },
+      }))
+      // Beri waktu 500ms untuk lihat 100% sebelum clear
+      await new Promise((r) => setTimeout(r, 500))
+
+      // Gabungkan chunks jadi blob, trus trigger download
+      const blob = new Blob(chunks as BlobPart[], { type: 'application/vnd.android.package-archive' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = mod.fileName || mod.name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      setDownloadProgress((prev) => {
+        const next = { ...prev }
+        delete next[mod.id]
+        return next
+      })
+      toast.success(`Download selesai: ${mod.name}`, {
+        description: 'Cek folder Downloads di File Manager Anda',
+      })
+    } catch (e: any) {
+      setDownloadProgress((prev) => {
+        const next = { ...prev }
+        delete next[mod.id]
+        return next
+      })
+      // Fallback: trigger anchor download biasa
+      const a = document.createElement('a')
+      a.href = fileUrl
+      a.download = mod.fileName || mod.name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      toast.success(`Memulai download: ${mod.name}`)
     }
   }, [selectedMod])
 
@@ -233,6 +328,7 @@ export default function Home() {
             onOpenDetail={openDetail}
             onDownload={handleDownload}
             onGoAdmin={() => switchView('admin')}
+            downloadProgress={downloadProgress}
           />
         )}
         {view === 'admin' && (
@@ -278,7 +374,7 @@ export default function Home() {
 // ============= STORE VIEW (USER) =============
 
 function StoreView({
-  mods, loading, search, isAdmin, onOpenDetail, onDownload, onGoAdmin,
+  mods, loading, search, isAdmin, onOpenDetail, onDownload, onGoAdmin, downloadProgress,
 }: {
   mods: Mod[]
   loading: boolean
@@ -287,6 +383,7 @@ function StoreView({
   onOpenDetail: (m: Mod) => void
   onDownload: (m: Mod) => void
   onGoAdmin: () => void
+  downloadProgress: Record<string, { percent: number; loaded: number; total: number }>
 }) {
   return (
     <div className="px-3 sm:px-4 py-4">
@@ -350,6 +447,7 @@ function StoreView({
                 mod={mod}
                 onDownload={() => onDownload(mod)}
                 onOpen={() => onOpenDetail(mod)}
+                progress={downloadProgress[mod.id]}
               />
             </motion.div>
           ))}
@@ -360,12 +458,15 @@ function StoreView({
 }
 
 function ApkCard({
-  mod, onDownload, onOpen,
+  mod, onDownload, onOpen, progress,
 }: {
   mod: Mod
   onDownload: () => void
   onOpen: () => void
+  progress?: { percent: number; loaded: number; total: number }
 }) {
+  const isDownloading = !!progress
+  const percent = progress?.percent ?? 0
   return (
     <Card className="p-4 hover:shadow-md hover:border-primary/30 transition-all duration-200 flex flex-col gap-3">
       <div onClick={onOpen} className="cursor-pointer flex-1">
@@ -406,17 +507,64 @@ function ApkCard({
           </div>
         )}
       </div>
-      {/* Tombol Download BESAR */}
+
+      {/* Progress bar download - muncul saat sedang download */}
+      {isDownloading && (
+        <div className="space-y-1.5 -mt-1">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="flex items-center gap-1 text-primary font-medium">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Mengunduh APK...
+            </span>
+            <span className="font-mono font-bold text-primary">{percent}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300 relative"
+              style={{ width: `${percent}%` }}
+            >
+              <div className="absolute inset-0 bg-white/20 animate-pulse" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-[9px] text-muted-foreground font-mono">
+            <span>{progress.loaded > 0 ? formatBytes(progress.loaded) : '0 B'} / {progress.total > 0 ? formatBytes(progress.total) : mod.fileSize || '?'}</span>
+            <span>{percent >= 100 ? 'Selesai!' : 'Sedang mengunduh...'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Tombol Download BESAR - berubah jadi "Downloading..." saat proses */}
       <Button
         onClick={onDownload}
-        className="w-full gap-2 bg-primary hover:bg-primary/90 h-10"
+        disabled={isDownloading}
+        className={`w-full gap-2 h-10 transition-all ${
+          isDownloading
+            ? 'bg-muted text-muted-foreground cursor-not-allowed'
+            : 'bg-primary hover:bg-primary/90'
+        }`}
         size="lg"
       >
-        <Download className="h-4 w-4" />
-        Download APK
+        {isDownloading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Downloading... {percent}%
+          </>
+        ) : (
+          <>
+            <Download className="h-4 w-4" />
+            Download APK
+          </>
+        )}
       </Button>
     </Card>
   )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
 }
 
 function formatNum(n: number): string {
