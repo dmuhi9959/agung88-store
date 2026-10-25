@@ -856,13 +856,13 @@ function SettingsView({ onBack }: { onBack: () => void }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-sm">JASA ROOT Admin</h3>
                 <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                  v1.0.0 • 5.9 MB
+                  v1.1.0 • 5.9 MB
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 APK untuk HP Admin. Upload & hapus APK dari store.
               </p>
-              <a href="/downloads/jasa-root-admin-v1.0.0.apk" download>
+              <a href="/downloads/jasa-root-admin-v1.1.0.apk" download>
                 <Button className="w-full mt-3 gap-1.5 bg-amber-500 hover:bg-amber-600" size="sm">
                   <Download className="h-4 w-4" />
                   Download APK Admin
