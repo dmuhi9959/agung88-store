@@ -250,11 +250,11 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
-      {/* Sidebar kiri - seperti screenshot referensi */}
-      <aside className="hidden md:flex flex-col w-56 border-r border-border bg-sidebar/50 sticky top-0 h-screen shrink-0">
+    <div className="h-screen flex bg-background overflow-hidden">
+      {/* Sidebar kiri - FIXED, tidak ikut scroll */}
+      <aside className="hidden md:flex flex-col w-56 border-r border-border bg-sidebar/50 shrink-0 overflow-hidden">
         {/* Logo */}
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border shrink-0">
           <button
             onClick={() => setView('store')}
             className="flex items-center gap-2 w-full"
@@ -271,8 +271,8 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Menu */}
-        <nav className="flex-1 p-2 space-y-1">
+        {/* Menu - bisa scroll kalau menu panjang */}
+        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
           <SidebarMenuItem
             icon={HomeIcon}
             label="Beranda"
@@ -318,8 +318,8 @@ export default function Home() {
           )}
         </nav>
 
-        {/* Footer sidebar */}
-        <div className="p-3 border-t border-border text-[10px] text-muted-foreground">
+        {/* Footer sidebar - tetap di bawah */}
+        <div className="p-3 border-t border-border text-[10px] text-muted-foreground shrink-0">
           <div className="flex items-center gap-1.5">
             <Tv className="h-3 w-3 text-primary" />
             <span className="font-semibold">JASA ROOT CIKAMPEK</span>
@@ -328,10 +328,10 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar - search + refresh + admin (mobile) */}
-        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+      {/* Main content area - flexible, scrollable inside */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Top bar - FIXED di atas, tidak ikut scroll */}
+        <header className="border-b border-border bg-background/95 backdrop-blur shrink-0">
           <div className="flex h-14 items-center gap-3 px-4">
             {/* Mobile: logo kecil */}
             <button
@@ -408,7 +408,7 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Content */}
+        {/* Content - SCROLLABLE, terpisah dari header */}
         <main className="flex-1 overflow-y-auto">
           {view === 'store' && (
             <StoreView
@@ -445,9 +445,9 @@ export default function Home() {
           )}
         </main>
 
-        {/* Footer */}
-        <footer className="border-t border-border mt-auto">
-          <div className="px-4 py-3 text-center text-[10px] text-muted-foreground">
+        {/* Footer - tetap di bawah, tidak ikut scroll */}
+        <footer className="border-t border-border shrink-0">
+          <div className="px-4 py-2 text-center text-[10px] text-muted-foreground">
             {mods.length} APK tersedia • JASA ROOT CIKAMPEK
           </div>
         </footer>
@@ -586,120 +586,82 @@ function ApkCard({
   const isDownloading = !!progress
   const percent = progress?.percent ?? 0
   return (
-    <Card className="p-4 hover:shadow-md hover:border-primary/30 transition-all duration-200 flex gap-3 sm:gap-4 items-start sm:items-center">
+    <Card className="p-3 sm:p-4 flex gap-3 items-center">
       {/* Icon APK */}
       <button
         onClick={onOpen}
-        className="size-16 sm:size-20 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center shrink-0 hover:scale-105 transition-transform cursor-pointer"
+        className="size-14 sm:size-16 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center shrink-0 cursor-pointer"
         aria-label={`Detail ${mod.name}`}
       >
         {mod.iconUrl ? (
-           
-          <img src={mod.iconUrl} alt={mod.name} className="w-full h-full object-cover rounded-xl" />
+          <img src={mod.iconUrl} alt={mod.name} className="w-full h-full object-cover rounded-lg" />
         ) : (
-          <Package className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
+          <Package className="h-7 w-7 text-primary" />
         )}
       </button>
 
       {/* Info - tengah */}
       <div className="flex-1 min-w-0" onClick={onOpen}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="font-semibold text-base sm:text-lg leading-tight truncate">{mod.name}</h3>
-          {mod.featured && (
-            <Badge variant="secondary" className="gap-0.5 text-[9px] h-4 px-1.5 bg-amber-500/15 text-amber-600 dark:text-amber-400">
-              <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
-              Featured
-            </Badge>
+        <h3 className="font-semibold text-sm sm:text-base leading-tight truncate">{mod.name}</h3>
+        <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{mod.description}</p>
+        <div className="flex items-center gap-2 flex-wrap mt-1 text-[10px] text-muted-foreground">
+          {mod.version && (
+            <Badge variant="outline" className="text-[10px] h-4 px-1.5">{mod.version}</Badge>
           )}
-        </div>
-
-        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1 sm:line-clamp-2 mt-0.5">
-          {mod.description}
-        </p>
-
-        {/* Meta info */}
-        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] sm:text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Download className="h-3 w-3" />
-            {formatNum(mod.downloads)}
-          </span>
-          <span className="flex items-center gap-1">
-            <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-            {mod.rating.toFixed(1)}
-          </span>
           {mod.fileSize && (
-            <span className="flex items-center gap-1">
-              <HardDrive className="h-3 w-3" />
+            <span className="flex items-center gap-0.5">
+              <HardDrive className="h-2.5 w-2.5" />
               {mod.fileSize}
             </span>
           )}
-          {mod.version && (
-            <Badge variant="outline" className="text-[10px] h-4 px-1.5">
-              {mod.version}
-            </Badge>
-          )}
-          <span className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            Diperbarui {formatRelativeTime(mod.createdAt)}
+          <span className="flex items-center gap-0.5">
+            <Download className="h-2.5 w-2.5" />
+            {formatNum(mod.downloads)}
+          </span>
+          <span className="hidden sm:flex items-center gap-0.5">
+            <Calendar className="h-2.5 w-2.5" />
+            {formatRelativeTime(mod.createdAt)}
           </span>
         </div>
 
-        {/* Progress bar download - muncul saat sedang download */}
+        {/* Progress bar download - ringkas */}
         {isDownloading && (
-          <div className="space-y-1 mt-2 max-w-md">
-            <div className="flex items-center justify-between text-[10px]">
+          <div className="mt-2">
+            <div className="flex items-center justify-between text-[10px] mb-0.5">
               <span className="flex items-center gap-1 text-primary font-medium">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                {percent >= 100 ? 'Selesai!' : 'Mengunduh APK...'}
+                {percent >= 100 ? 'Selesai!' : 'Mengunduh...'}
               </span>
               <span className="font-mono font-bold text-primary">{percent}%</span>
             </div>
             <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300 relative"
+                className="h-full bg-primary"
                 style={{ width: `${percent}%` }}
-              >
-                <div className="absolute inset-0 bg-white/20 animate-pulse" />
-              </div>
-            </div>
-            <div className="text-[9px] text-muted-foreground font-mono">
-              {progress.loaded > 0 ? formatBytes(progress.loaded) : '0 B'} / {progress.total > 0 ? formatBytes(progress.total) : mod.fileSize || '?'}
+              />
             </div>
           </div>
         )}
       </div>
 
-      {/* Tombol Install / Download - kanan */}
-      <div className="shrink-0 flex flex-col gap-2 items-end">
-        <Button
-          onClick={onDownload}
-          disabled={isDownloading}
-          size="sm"
-          className={`gap-1.5 h-9 px-4 sm:px-5 transition-all ${
-            isDownloading
-              ? 'bg-muted text-muted-foreground cursor-not-allowed'
-              : 'bg-primary hover:bg-primary/90'
-          }`}
-        >
-          {isDownloading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="hidden sm:inline">{percent}%</span>
-            </>
-          ) : (
-            <>
-              <Download className="h-4 w-4" />
-              <span>Install</span>
-            </>
-          )}
-        </Button>
-        <button
-          onClick={onOpen}
-          className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
-        >
-          Detail →
-        </button>
-      </div>
+      {/* Tombol Install - kanan */}
+      <Button
+        onClick={onDownload}
+        disabled={isDownloading}
+        size="sm"
+        className={`shrink-0 gap-1.5 h-9 px-4 ${
+          isDownloading
+            ? 'bg-muted text-muted-foreground cursor-not-allowed'
+            : 'bg-primary hover:bg-primary/90'
+        }`}
+      >
+        {isDownloading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4" />
+        )}
+        <span>{isDownloading ? `${percent}%` : 'Install'}</span>
+      </Button>
     </Card>
   )
 }

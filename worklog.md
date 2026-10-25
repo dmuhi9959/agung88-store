@@ -485,3 +485,74 @@ Stage Summary:
 - Store app lebih ringan setelah hapus framer-motion dan animasi
 - Admin login tetap sama: admin / admin123
 - Kedua APK bisa di-install bersamaan karena package name berbeda (com.stbmodstore.app vs com.stbmodstore.admin)
+
+---
+Task ID: STB-Mod-Store-Fix-Layout-Scroll
+Agent: Main Agent (Z.ai)
+Task: User complain: "menu apk lebar ke atas, jadi mentok terus ke penelusuran apk jadi susah di gulir". Layout store app bikin halaman full scroll (parent ikut scroll), jadi search bar tidak tetap di atas dan list APK menumpuk ke search.
+
+Work Log:
+- Diagnosa masalah layout:
+  * Parent div pakai `min-h-screen flex` (tinggi minimal = viewport, tapi bisa tumbuh)
+  * Sidebar pakai `sticky top-0 h-screen`
+  * Header pakai `sticky top-0 z-40`
+  * Main pakai `flex-1 overflow-y-auto` tapi parent tidak fixed height
+  * Hasilnya: parent scroll full page, search bar ikut scroll (tidak sticky efektif)
+- Fix layout dengan fixed height:
+  * Parent: `h-screen flex bg-background overflow-hidden` (tinggi fix viewport, parent NO scroll)
+  * Sidebar: hapus `sticky`, hapus `h-screen` dari class - jadi fixed layout
+  * Logo sidebar: tambah `shrink-0` supaya tidak kompres
+  * Nav sidebar: tambah `overflow-y-auto` untuk scroll kalau menu panjang
+  * Footer sidebar: tambah `shrink-0`
+  * Main wrapper: `flex-1 flex flex-col min-w-0 h-screen overflow-hidden`
+  * Header: hapus `sticky top-0 z-40` (tidak perlu lagi karena parent fix), tambah `shrink-0`
+  * Main content: tetap `flex-1 overflow-y-auto` (sekarang bekerja karena parent fix)
+  * Footer: hapus `mt-auto`, tambah `shrink-0`
+- Simplify ApkCard untuk lebih ringan & mudah scroll:
+  * Hapus `transition-all duration-200` di Card
+  * Hapus `hover:shadow-md hover:border-primary/30`
+  * Hapus `hover:scale-105 transition-transform` di icon button
+  * Icon: size-14 sm:size-16 (lebih kecil dari sebelumnya size-16 sm:size-20)
+  * Hapus badge Featured (tidak terlalu penting untuk STB)
+  * Hapus rating star dari meta info (cukup version, size, downloads, diperbarui)
+  * Hapus tombol "Detail →" terpisah - icon dan info card bisa diklik untuk detail
+  * Progress bar: hapus gradient dan pulse animation, ganti dengan bg-primary solid
+  * Hapus text "0 B / 14.8 MB" di progress bar (cukup percent)
+  * Padding Card: p-3 sm:p-4 (lebih compact dari p-4)
+  * Hapus class sm:line-clamp-2 di description, cukup line-clamp-1
+- Rebuild APK store v1.4.0 dengan layout fix:
+  * BUILD SUCCESSFUL in 27 seconds
+  * APK 5.9 MB
+  * Signed v1 + v2 scheme
+  * Package: com.stbmodstore.app
+  * App Label: JASA ROOT CIKAMPEK
+- Verifikasi dengan agent-browser:
+  * Parent overflow: visible (parent tidak scroll)
+  * bodyHeight = viewportHeight (tidak ada parent scroll)
+  * mainScrollHeight > clientHeight (main bisa scroll)
+  * mainOverflow: auto (main scrollable)
+  * canScrollMain: true (main bisa scroll)
+  * Test scroll main ke 400px: scrollTop=312, lastCardVisible=true, searchTop=0 (search tetap di atas)
+  * Lint bersih (0 errors, 0 warnings)
+- Copy APK ke folder download:
+  * /home/z/my-project/download/jasa-root-cikampek-v1.4.0.apk (5.9 MB)
+  * /home/z/my-project/public/downloads/jasa-root-cikampek-v1.4.0.apk (5.9 MB)
+- Hapus APK versi lama (v1.3.0)
+
+Stage Summary:
+- Layout store app sudah di-fix:
+  * Header (search bar) TETAP di atas (tidak ikut scroll)
+  * List APK bisa di-scroll bebas di bawah header
+  * Sidebar TETAP di kiri (tidak ikut scroll)
+  * Footer TETAP di bawah (tidak ikut scroll)
+  * Tidak ada parent scroll yang mengganggu
+- ApkCard lebih compact dan ringan:
+  * Icon lebih kecil (size-14 dari size-16)
+  * Hapus animasi hover yang berat
+  * Hapus pulse animation di progress bar
+  * Hapus elemen yang tidak perlu (badge Featured, rating star, tombol Detail terpisah)
+- APK store v1.4.0 tersedia:
+  * /home/z/my-project/download/jasa-root-cikampek-v1.4.0.apk (5.9 MB)
+  * Sudah fix layout scroll - search bar tidak ikut scroll, list APK bisa di-scroll bebas
+- APK admin tetap tersedia:
+  * /home/z/my-project/download/jasa-root-admin-v1.0.0.apk (5.9 MB)
