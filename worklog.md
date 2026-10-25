@@ -312,3 +312,69 @@ Stage Summary:
 - Progress bar tetap muncul di bawah aplikasi (percent + bytes loaded/total)
 - User tidak perlu setup permission manual, tidak perlu "Unknown sources" toggle (REQUEST_INSTALL_PACKAGES sudah handle)
 - Kompatibel dengan SEMUA versi Android dari 5.0 (Lollipop) sampai Android 14+
+
+---
+Task ID: STB-Mod-Store-Rebrand-JasaRootCikampek
+Agent: Main Agent (Z.ai)
+Task: User konfirmasi APK store v1.2.0 sudah bisa download RBTV+. User minta ganti logo ke logo JASA ROOT CIKAMPEK.
+
+Work Log:
+- User upload logo "JASA ROOT CIKAMPEK" (PNG 1254x1254, 1.4 MB)
+  * Logo bertema Android hijau neon dengan teks "JASA ROOT CIKAMPEK", "STORE APK", "ROOT • UNLOCK • INSTALL APK"
+- Buat scripts/generate-logo-icons.py untuk generate semua ukuran icon dari logo:
+  * 12 PWA icons (16px - 512px, format PNG)
+  * 2 maskable icons (192, 512) untuk adaptive display
+  * 1 apple-touch-icon (180px)
+  * 1 monochrome icon (512px) untuk status bar
+  * 1 favicon.ico (multi-res 16/32/48)
+  * 5 mipmap densities untuk Android (mdpi 48, hdpi 72, xhdpi 96, xxhdpi 144, xxxhdpi 192)
+  * ic_launcher + ic_launcher_round + ic_launcher_foreground untuk adaptive icon
+- Copy original logo ke /public/logo.png (untuk dipakai di header web app)
+- Update src/app/page.tsx:
+  * Header: ganti div gradient+icon Cpu jadi img logo JASA ROOT CIKAMPEK (size-8 rounded)
+  * Teks header: "JASA ROOT CIKAMPEK" (bold) + "STORE APK" (subtitle muted)
+  * Footer: ganti "STB Mod Store" jadi "JASA ROOT CIKAMPEK"
+- Update src/app/layout.tsx:
+  * Title: "JASA ROOT CIKAMPEK - Store APK"
+  * Description: tambah "Root • Unlock • Install APK"
+  * Keywords: tambah "Jasa Root", "Cikampek"
+  * applicationName: "JASA ROOT CIKAMPEK"
+- Update public/manifest.json:
+  * name: "JASA ROOT CIKAMPEK - Store APK"
+  * short_name: "JASA ROOT"
+  * description: update dengan tagline baru
+- Update Android project strings.xml:
+  * app_name: "JASA ROOT CIKAMPEK" (default sebelumnya: "STB Mod Store")
+  * loading_message: "Memuat JASA ROOT CIKAMPEK..."
+- Rebuild APK store v1.3.0:
+  * Clear build cache supaya gradle pakai icon baru
+  * BUILD SUCCESSFUL in 25 seconds
+  * APK 5.9 MB (naik 300KB karena logo lebih besar dari icon lama)
+  * Verifikasi:
+    - application-label: 'JASA ROOT CIKAMPEK' ✓
+    - 15 mipmap files terdaftar (3 per density × 5 densities) ✓
+    - Signed v1 + v2 scheme ✓
+    - Package tetap com.stbmodstore.app (tidak berubah)
+- Copy APK ke folder download:
+  * /home/z/my-project/download/jasa-root-cikampek-v1.3.0.apk
+  * /home/z/my-project/public/downloads/jasa-root-cikampek-v1.3.0.apk
+- Hapus APK versi lama (v1.0.0, v1.1.0, v1.2.0)
+- Verifikasi web app dengan agent-browser:
+  * Title browser: "JASA ROOT CIKAMPEK - Store APK" ✓
+  * Header menampilkan logo + teks "JASA ROOT CIKAMPEK" + "STORE APK" ✓
+  * Logo ter-load (naturalWidth > 0) ✓
+  * Server HTTP 200 OK ✓
+
+Stage Summary:
+- Aplikasi web sekarang ber-branding "JASA ROOT CIKAMPEK"
+- Logo JASA ROOT CIKAMPEK digunakan di:
+  * Header aplikasi web (logo kecil + teks)
+  * Favicon browser
+  * PWA manifest (untuk install PWA di HP/STB)
+  * Icon launcher APK store (yang muncul di home screen STB/Android TV)
+  * App label: "JASA ROOT CIKAMPEK" (bukan "STB Mod Store" lagi)
+- APK store v1.3.0 tersedia di:
+  * /home/z/my-project/download/jasa-root-cikampek-v1.3.0.apk (5.9 MB)
+  * /home/z/my-project/public/downloads/jasa-root-cikampek-v1.3.0.apk (5.9 MB)
+- Semua fitur download (RBTV+ dengan progress bar + auto-install) tetap berfungsi
+- Tidak ada breaking changes - database, admin login, dan semua fitur lain tetap sama

@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "STB Mod Store - Download APK",
-  description: "Download APK mod STB (Set-Top Box) terlengkap. ROM, IPTV, Launcher, Codec untuk B860H, IndiBox, Evictrio, Mi Box, Android TV.",
-  keywords: ["STB mod", "APK", "set-top box", "B860H", "IPTV", "ROM", "Android TV"],
-  applicationName: "STB Mod Store",
+  title: "JASA ROOT CIKAMPEK - Store APK",
+  description: "Store APK untuk STB/Android TV. Download ROM, IPTV, Launcher, Codec untuk B860H, IndiBox, Evictrio, Mi Box, Android TV. Root • Unlock • Install APK.",
+  keywords: ["STB mod", "APK", "set-top box", "B860H", "IPTV", "ROM", "Android TV", "Jasa Root", "Cikampek"],
+  applicationName: "JASA ROOT CIKAMPEK",
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/icon-192x192.png",

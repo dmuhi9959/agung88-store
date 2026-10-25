@@ -248,10 +248,17 @@ export default function Home() {
             onClick={() => switchView('store')}
             className="flex items-center gap-2 shrink-0"
           >
-            <div className="size-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-              <Cpu className="h-4 w-4 text-white" />
+            {/* Logo JASA ROOT CIKAMPEK */}
+            { }
+            <img
+              src="/logo.png"
+              alt="JASA ROOT CIKAMPEK"
+              className="size-8 rounded-lg object-cover"
+            />
+            <div className="flex flex-col leading-tight hidden sm:flex">
+              <span className="font-bold text-xs">JASA ROOT CIKAMPEK</span>
+              <span className="text-[9px] text-muted-foreground -mt-0.5">STORE APK</span>
             </div>
-            <span className="font-bold text-sm hidden sm:block">STB Mod Store</span>
           </button>
 
           {/* Search - tengah */}
@@ -354,7 +361,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border mt-auto">
         <div className="px-4 py-3 text-center text-[10px] text-muted-foreground">
-          {mods.length} APK tersedia • STB Mod Store
+          {mods.length} APK tersedia • JASA ROOT CIKAMPEK
         </div>
       </footer>
 
