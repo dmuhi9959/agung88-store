@@ -143,3 +143,57 @@ Stage Summary:
 - APK info: com.stbmodstore.app v1.0.0, min Android 5.0, signed debug, 871 files
 - Build environment siap: jika ada update aplikasi, bisa rebuild APK dengan gradle assembleDebug
 - ZIP source code project tetap tersedia untuk user yang ingin customize build sendiri
+
+---
+Task ID: STB-Mod-Store-Simplify-Reset
+Agent: Main Agent (Z.ai)
+Task: User minta: hapus semua APK contoh (XTREAM, KODI, TWRP, INDIBOX, dll), simpel-kan tampilan, tambah menu admin untuk upload & hapus APK, upload APK RBTV+ v3.0.323 milik user
+
+Work Log:
+- User upload file "RBTV+ v3.0.323.apk" (14.76 MB) ke /home/z/my-project/upload/
+- Buat src/lib/auth.ts: admin credentials (admin/admin123), session cookie (HTTP-only), validateCredentials(), createSession(), isAdmin() helper untuk server-side
+- Buat API routes untuk auth:
+  * /api/auth/login (POST, validate username/password, set cookie HTTP-only)
+  * /api/auth/logout (POST, clear cookie)
+  * /api/auth/check (GET, cek session aktif)
+- Update /api/mods route: GET tetap public, POST sekarang butuh admin auth (return 403 kalau belum login)
+- Update /api/mods/[id] route: GET tetap public, PUT dan DELETE butuh admin auth
+- Buat ulang src/app/page.tsx jadi SANGAT SIMPEL dan RINGAN:
+  * Hapus: hero section, featured section, sidebar kategori (9 kategori), filter tipe STB (8 tipe), sort dropdown, theme toggle, halaman upload full-page, halaman download APK guide, framer-motion berat
+  * Header tipis (h-14) dengan: logo kecil, search bar, tombol Admin/Login
+  * Store view: langsung grid APK (sm:grid-cols-2, lg:grid-cols-3), card simpel dengan tombol Download APK besar (h-10)
+  * Login view: form username + password, info default credentials (admin/admin123)
+  * Admin view: stats (3 cards), tombol "Upload APK Baru", list APK dengan tombol hapus per item
+  * Upload Dialog: form sederhana - file APK drag-drop, nama, deskripsi, versi, developer, tags, changelog, icon, featured toggle
+- Update layout.tsx: hapus Toaster duplikat, hapus dark mode toggle manual (sekarang auto dark)
+- Buat scripts/reset-and-upload-rbtv.ts:
+  * Hapus semua mod dari database (12 mods)
+  * Delete file APK, icon, screenshot terkait
+  * Copy RBTV+ v3.0.323.apk dari /upload/ ke /public/uploads/mods/rbtv-v3.0.323.apk
+  * Buat record mod baru: RBTV+, v3.0.323, 14.76 MB, featured=true
+- Run script: 12 mods deleted, 1 RBTV+ added
+- Verifikasi dengan agent-browser:
+  * Halaman utama load 200 OK, hanya tampilkan 1 APK (RBTV+)
+  * H1 "Daftar APK", "1 APK siap download"
+  * Card RBTV+ muncul dengan tombol Download APK
+  * Klik Admin → muncul form login dengan username/password
+  * Login dengan admin/admin123 → berhasil masuk ke Admin Panel
+  * Admin Panel menampilkan: stats (Total APK: 1), tombol "Upload APK Baru", list dengan RBTV+ dan tombol hapus
+  * Klik Upload APK Baru → dialog form muncul dengan field file, nama, versi, deskripsi, tags, changelog, icon, featured
+  * Tombol hapus per APK dengan aria-label "Hapus RBTV+" tersedia
+- Lint bersih (0 errors, 0 warnings)
+
+Stage Summary:
+- Store sekarang SANGAT RINGAN dan SIMPEL:
+  * Halaman utama: langsung lihat grid APK dengan tombol download besar
+  * Hanya 1 APK di store: RBTV+ v3.0.323 (14.76 MB)
+  * User biasa hanya bisa download APK
+  * Admin bisa upload & hapus APK via menu Admin
+- Login admin:
+  * Username: admin
+  * Password: admin123
+  * Ganti password di src/lib/auth.ts (ADMIN_PASSWORD)
+- File APK tersimpan di /public/uploads/mods/ dengan nama unik
+- Session admin valid 7 hari, HTTP-only cookie (anti XSS)
+- Akses admin: klik tombol Admin di header (kanan atas) → login → masuk Admin Panel
+- API protection: GET /api/mods public, POST/PUT/DELETE butuh admin session (403 Forbidden jika tidak)
