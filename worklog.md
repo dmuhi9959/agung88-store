@@ -440,3 +440,48 @@ Stage Summary:
 - Menu Admin tetap berfungsi (login admin/admin123) untuk upload/hapus APK
 - Settings page baru dengan fitur: About, Clear Cache, Admin Login shortcut
 - Mobile responsive: sidebar hidden di mobile, logo kecil tampil di header
+
+---
+Task ID: STB-Mod-Store-SeparateAdmin-Lightweight
+Agent: Main Agent (Z.ai)
+Task: User complain store app masih berat (perpindahan view kurang lancar). User minta admin dipisah jadi APK khusus yang di-install di HP admin untuk upload/hapus APK.
+
+Work Log:
+- Optimize store app:
+  * Hapus import framer-motion (motion, AnimatePresence) dari page.tsx
+  * Hapus motion.div wrapper di map APK cards (yang bikin animasi initial/animate bikin berat)
+  * APK cards sekarang render langsung tanpa animasi, lebih cepat
+- Tambah URL param ?admin=1 untuk auto-switch ke admin view:
+  * useEffect cek window.location.search
+  * Kalau ada ?admin=1, set view='admin' otomatis
+  * Ini bikin APK store-admin bisa langsung buka URL dengan ?admin=1 dan masuk ke admin panel
+- Buat APK store-admin terpisah (project Android Studio baru):
+  * Lokasi: /home/z/my-project/download/stb-mod-store-admin-project/
+  * Package: com.stbmodstore.admin (beda dengan com.stbmodstore.app)
+  * App Label: "JASA ROOT Admin" (beda dengan "JASA ROOT CIKAMPEK")
+  * Target URL: https://preview-chat-8b701ad6-a5bc-4a95-9c56-ea87c9141bb1.space-z.ai/?admin=1
+  * File: settings.gradle, build.gradle, gradle.properties, gradlew script
+  * AndroidManifest.xml: tanpa Leanback launcher (admin pakai di HP, bukan TV)
+  * MainActivity.java: WebView wrapper sama dengan store tapi URL pakai ?admin=1
+  * Resources: copy dari store project (network_security_config, file_paths, colors, themes, mipmap icons)
+  * strings.xml custom: "JASA ROOT Admin" + "Memuat Admin Panel..."
+- Build APK admin:
+  * BUILD SUCCESSFUL in 26 seconds
+  * APK 5.9 MB, package com.stbmodstore.admin
+  * Signed v1 + v2 scheme
+  * Permissions: INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE, WAKE_LOCK, REQUEST_INSTALL_PACKAGES
+- Copy APK admin ke folder download:
+  * /home/z/my-project/download/jasa-root-admin-v1.0.0.apk (5.9 MB)
+  * /home/z/my-project/public/downloads/jasa-root-admin-v1.0.0.apk
+- Verifikasi dengan browser:
+  * Store app (http://localhost:3000/): load 200 OK, judul "JASA ROOT CIKAMPEK - Store APK", H1 "Daftar Aplikasi", 3 APK tampil
+  * Admin app (http://localhost:3000/?admin=1): auto-switch ke admin panel, H1 "Admin Panel"
+  * Lint bersih (0 errors, 0 warnings)
+
+Stage Summary:
+- 2 APK terpisah tersedia:
+  1. jasa-root-cikampek-v1.3.0.apk (5.9 MB) - untuk STB/user, buka URL tanpa ?admin=1, langsung lihat daftar APK
+  2. jasa-root-admin-v1.0.0.apk (5.9 MB) - untuk HP admin, buka URL ?admin=1, langsung masuk Admin Panel
+- Store app lebih ringan setelah hapus framer-motion dan animasi
+- Admin login tetap sama: admin / admin123
+- Kedua APK bisa di-install bersamaan karena package name berbeda (com.stbmodstore.app vs com.stbmodstore.admin)

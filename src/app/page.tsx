@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Menu, X, Download, Star, Trash2, Upload as UploadIcon,
   Loader2, Shield, LogOut, FileUp, Tag, Calendar, User, HardDrive,
@@ -72,6 +71,16 @@ export default function Home() {
     fetchMods()
     checkAuth()
   }, [fetchMods, checkAuth])
+
+  // Auto-switch to admin view jika URL pakai ?admin=1 (untuk APK store-admin terpisah)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('admin') === '1') {
+        setView('admin')
+      }
+    }
+  }, [])
 
   // Refetch when view changes or after auth update
   useEffect(() => {
@@ -544,20 +553,14 @@ function StoreView({
         </Card>
       ) : (
         <div className="space-y-3">
-          {mods.map((mod, i) => (
-            <motion.div
+          {mods.map((mod) => (
+            <ApkCard
               key={mod.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: Math.min(i * 0.05, 0.3) }}
-            >
-              <ApkCard
-                mod={mod}
-                onDownload={() => onDownload(mod)}
-                onOpen={() => onOpenDetail(mod)}
-                progress={downloadProgress[mod.id]}
-              />
-            </motion.div>
+              mod={mod}
+              onDownload={() => onDownload(mod)}
+              onOpen={() => onOpenDetail(mod)}
+              progress={downloadProgress[mod.id]}
+            />
           ))}
         </div>
       )}
