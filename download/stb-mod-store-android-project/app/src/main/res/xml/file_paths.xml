@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Untuk file APK yang di-download ke app-specific external storage -->
+    <external-files-path name="downloads" path="Download/STB Mod Store/" />
+    <external-files-path name="downloads_root" path="Download/" />
+    <external-files-path name="external_files" path="." />
+    <!-- Fallback kalau getExternalFilesDir return null dan pakai getFilesDir() -->
+    <files-path name="internal_downloads" path="Download/STB Mod Store/" />
+    <files-path name="internal_files" path="." />
+    <!-- Untuk cache jika perlu -->
+    <cache-path name="cache" path="." />
+    <external-cache-path name="external_cache" path="." />
+</paths>

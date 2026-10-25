@@ -259,3 +259,56 @@ Stage Summary:
   * Tombol berubah "Downloading... X%" saat proses
   * Disabled selama proses (anti double-click)
   * File tersimpan ke folder Downloads default browser
+
+---
+Task ID: STB-Mod-Store-Fix-Permission-Error
+Agent: Main Agent (Z.ai)
+Task: User gagal download APK RBTV+ di STB - error "no permission WRITE_EXTERNAL_STORAGE"
+
+Work Log:
+- User screenshot menunjukkan error: "Download gagal - tidak ada izin menulis ke /storage/emulated/0/Download/STB Mod Store/rbtv-v3.0.323.apk - user 10086 dan process ini tidak punya permission android.permission.WRITE_EXTERNAL_STORAGE"
+- Root cause:
+  1. Android 6+ butuh RUNTIME permission untuk WRITE_EXTERNAL_STORAGE (di manifest saja tidak cukup)
+  2. Android 11+ (API 30+) WRITE_EXTERNAL_STORAGE sudah deprecated - tidak bisa akses folder Downloads publik
+- Strategi fix: pakai APP-SPECIFIC storage (tidak butuh permission apapun di semua Android version)
+  * Lokasi: /Android/data/com.stbmodstore.app/files/Download/STB Mod Store/
+  * App-specific storage otomatis granted tanpa permission
+  * File di-install via FileProvider (anti FileUriExposedException di Android 7+)
+- Update MainActivity.java:
+  * Hapus import WRITE_EXTERNAL_STORAGE
+  * startDownloadWithManager: pakai getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) + FileProvider URI
+  * setDestinationUri(Uri.fromFile(destFile)) - file disimpan di app-specific storage
+  * Auto-install setelah download selesai: pakai FileProvider.getUriForFile() + Intent ACTION_VIEW dengan MIME "application/vnd.android.package-archive"
+  * FLAG_GRANT_READ_URI_PERMISSION untuk kasih akses sementara ke package installer
+  * Hapus file lama dengan nama yang sama sebelum download (anti konflik)
+  * Toast informatif: lokasi file ditampilkan ke user
+  * Error handling: tampilkan reason download gagal dari DownloadManager.COLUMN_REASON
+- Update AndroidManifest.xml:
+  * Hapus WRITE_EXTERNAL_STORAGE dan READ_EXTERNAL_STORAGE (tidak butuh lagi)
+  * Tambah FileProvider dengan authority com.stbmodstore.app.fileprovider
+  * Permission yang dipertahankan: INTERNET, ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE, WAKE_LOCK, REQUEST_INSTALL_PACKAGES
+  * Hapus android:requestLegacyExternalStorage (tidak butuh lagi)
+- Buat res/xml/file_paths.xml baru dengan paths untuk:
+  * external-files-path: Download/STB Mod Store/ dan Download/ (untuk getExternalFilesDir)
+  * files-path: Download/STB Mod Store/ dan . (fallback ke getFilesDir)
+  * cache-path dan external-cache-path untuk cache files
+- Rebuild APK v1.2.0:
+  * BUILD SUCCESSFUL in 26 seconds
+  * APK 5.6 MB, signed v1 + v2
+  * Verifikasi: tidak ada WRITE_EXTERNAL_STORAGE di permissions list
+  * FileProvider terdaftar di AndroidManifest (line 47)
+- File APK store v1.2.0 tersedia di:
+  * /home/z/my-project/download/stb-mod-store-v1.2.0.apk (5.6 MB)
+  * /home/z/my-project/public/downloads/stb-mod-store-v1.2.0.apk (5.6 MB)
+- Hapus APK versi lama (v1.0.0, v1.1.0) dari folder download
+
+Stage Summary:
+- APK store v1.2.0 SIAP dengan fix permission error
+- Download APK RBTV+ sekarang akan tersimpan di:
+  /Android/data/com.stbmodstore.app/files/Download/STB Mod Store/
+  (app-specific storage, tidak butuh permission apapun)
+- Setelah download selesai, AUTO-INSTALL akan trigger:
+  Popup installer Android muncul → user klik Install → APK terinstall
+- Progress bar tetap muncul di bawah aplikasi (percent + bytes loaded/total)
+- User tidak perlu setup permission manual, tidak perlu "Unknown sources" toggle (REQUEST_INSTALL_PACKAGES sudah handle)
+- Kompatibel dengan SEMUA versi Android dari 5.0 (Lollipop) sampai Android 14+

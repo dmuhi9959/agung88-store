@@ -18,7 +18,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.View;
-import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.GeolocationPermissions;
@@ -39,6 +38,7 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -48,18 +48,16 @@ import java.io.File;
 /**
  * MainActivity - WebView wrapper untuk STB Mod Store
  *
- * Memuat URL: https://preview-chat-8b701ad6-a5bc-4a95-9c56-ea87c9141bb1.space-z.ai/
- * Mendukung:
- * - File APK download dengan progress percentage (tersimpan di folder Downloads)
- * - File upload (untuk upload APK sebagai admin)
- * - Permission requests (camera, mic, location)
- * - Pull-to-refresh
- * - Back button navigation
- * - D-pad navigation untuk Android TV
+ * Download APK tanpa WRITE_EXTERNAL_STORAGE permission:
+ * - File disimpan di app-specific external storage (Android/data/<package>/files/Download/STB Mod Store/)
+ * - Tidak butuh permission sama sekali
+ * - File di-install via FileProvider (otomatis trigger installer)
  */
 public class MainActivity extends AppCompatActivity {
 
     private static final String TARGET_URL = "https://preview-chat-8b701ad6-a5bc-4a95-9c56-ea87c9141bb1.space-z.ai/";
+    private static final String FILE_PROVIDER_AUTHORITY = "com.stbmodstore.app.fileprovider";
+    private static final String DOWNLOAD_SUBDIR = "STB Mod Store";
 
     private WebView webView;
     private SwipeRefreshLayout swipeRefresh;
@@ -82,15 +80,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Edge-to-edge UI
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         WindowInsetsControllerCompat controller = new WindowInsetsControllerCompat(getWindow(), getDecorView());
         controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
 
-        // Build UI
         setupUI();
 
-        // Setup file chooser
         fileChooserLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -114,10 +109,12 @@ public class MainActivity extends AppCompatActivity {
         );
 
         // Register receiver for download complete
-        registerReceiver(onDownloadComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ? Context.RECEIVER_NOT_EXPORTED : 0);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(onDownloadComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(onDownloadComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        }
 
-        // Restore state if any
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
@@ -132,7 +129,6 @@ public class MainActivity extends AppCompatActivity {
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        // SwipeRefreshLayout as wrapper
         swipeRefresh = new SwipeRefreshLayout(this);
         swipeRefresh.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -140,7 +136,6 @@ public class MainActivity extends AppCompatActivity {
         ));
         swipeRefresh.setOnRefreshListener(() -> webView.reload());
 
-        // WebView
         webView = new WebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -149,19 +144,18 @@ public class MainActivity extends AppCompatActivity {
         webView.setId(View.generateViewId());
         swipeRefresh.addView(webView);
 
-        // Progress bar (top, for page loading)
+        // Progress bar for page loading
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         FrameLayout.LayoutParams pbParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT, 8
         );
-        pbParams.topMargin = 0;
         progressBar.setLayoutParams(pbParams);
         progressBar.setMax(100);
         progressBar.setProgress(0);
         progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#10b981")));
         progressBar.setVisibility(View.GONE);
 
-        // Download progress container (bottom, for APK download)
+        // Download progress container (bottom)
         downloadProgressContainer = new LinearLayout(this);
         downloadProgressContainer.setOrientation(LinearLayout.VERTICAL);
         FrameLayout.LayoutParams dpcParams = new FrameLayout.LayoutParams(
@@ -174,7 +168,6 @@ public class MainActivity extends AppCompatActivity {
         downloadProgressContainer.setBackgroundColor(Color.parseColor("#F0FDFA"));
         downloadProgressContainer.setElevation(8);
 
-        // Text "Mengunduh APK..."
         downloadProgressText = new TextView(this);
         downloadProgressText.setText("Mengunduh APK...");
         downloadProgressText.setTextColor(Color.parseColor("#065F46"));
@@ -188,7 +181,6 @@ public class MainActivity extends AppCompatActivity {
         downloadProgressText.setLayoutParams(textParams);
         downloadProgressContainer.addView(downloadProgressText);
 
-        // Horizontal progress bar
         downloadProgressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         LinearLayout.LayoutParams dpbParams = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -200,7 +192,6 @@ public class MainActivity extends AppCompatActivity {
         downloadProgressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#10B981")));
         downloadProgressContainer.addView(downloadProgressBar);
 
-        // Percentage text
         downloadProgressPercent = new TextView(this);
         downloadProgressPercent.setText("0% • 0 MB / 0 MB");
         downloadProgressPercent.setTextColor(Color.parseColor("#065F46"));
@@ -257,17 +248,14 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowFileAccessFromFileURLs(false);
         settings.setAllowUniversalAccessFromFileURLs(false);
 
-        // Enable cookies (penting untuk session admin)
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
-        // WebView client
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String host = uri.getHost();
-                // Keep browsing in-app for our domain, open external for others
                 if (host != null && (host.contains("space-z.ai") || host.contains("pwabuilder.com"))) {
                     return false;
                 }
@@ -293,7 +281,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Chrome client
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
@@ -310,9 +297,7 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     String[] resources = request.getResources();
                     String[] granted = new String[resources.length];
-                    for (int i = 0; i < resources.length; i++) {
-                        granted[i] = resources[i];
-                    }
+                    System.arraycopy(resources, 0, granted, 0, resources.length);
                     request.grant(granted);
                 });
             }
@@ -347,11 +332,10 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // === DOWNLOAD LISTENER - Handle APK download with progress ===
+        // === DOWNLOAD LISTENER - Handle APK download ===
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
-                // Start download using DownloadManager (native Android)
                 startDownloadWithManager(url, userAgent, contentDisposition, mimetype, contentLength);
             }
         });
@@ -359,9 +343,9 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Start download menggunakan Android DownloadManager
-     * - File tersimpan di folder Downloads/STB Mod Store/
-     * - Progress bar real-time
-     * - Notifikasi system akan muncul
+     * - File disimpan di app-specific external storage (TIDAK butuh permission)
+     * - Lokasi: Android/data/com.stbmodstore.app/files/Download/STB Mod Store/
+     * - Auto-install via FileProvider setelah selesai
      */
     @SuppressLint("Range")
     private void startDownloadWithManager(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
@@ -370,15 +354,11 @@ public class MainActivity extends AppCompatActivity {
             request.setMimeType(mimetype != null ? mimetype : "application/octet-stream");
             request.setTitle("STB Mod Store - Download APK");
             request.setDescription("Sedang mengunduh APK...");
-
-            // Allow download over mobile & WiFi
             request.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI | DownloadManager.Request.NETWORK_MOBILE);
             request.setAllowedOverRoaming(true);
-
-            // Visible in notifications
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
 
-            // Cookies (untuk auth admin, jika perlu)
+            // Cookies (untuk auth admin)
             String cookies = CookieManager.getInstance().getCookie(url);
             if (cookies != null) {
                 request.addRequestHeader("Cookie", cookies);
@@ -387,21 +367,36 @@ public class MainActivity extends AppCompatActivity {
                 request.addRequestHeader("User-Agent", userAgent);
             }
 
-            // Determine filename from content disposition or URL
+            // Tentukan filename
             String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
-            // Pastikan ekstensi .apk
             if (!fileName.toLowerCase().endsWith(".apk") && !fileName.toLowerCase().endsWith(".zip") && !fileName.toLowerCase().endsWith(".rar")) {
                 fileName += ".apk";
             }
 
-            // Save ke folder Downloads/STB Mod Store/
-            File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            File stbDir = new File(downloadDir, "STB Mod Store");
-            if (!stbDir.exists()) stbDir.mkdirs();
+            // === SIMPAN DI APP-SPECIFIC STORAGE (TIDAK BUTUH PERMISSION) ===
+            // Lokasi: /Android/data/com.stbmodstore.app/files/Download/STB Mod Store/
+            File destDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            if (destDir == null) {
+                destDir = getFilesDir(); // fallback ke internal storage
+            }
+            File stbDir = new File(destDir, DOWNLOAD_SUBDIR);
+            if (!stbDir.exists()) {
+                boolean created = stbDir.mkdirs();
+                if (!created && !stbDir.exists()) {
+                    stbDir = destDir; // fallback ke parent dir
+                }
+            }
+            File destFile = new File(stbDir, fileName);
 
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "STB Mod Store/" + fileName);
+            // Hapus file lama dengan nama yang sama (kalau ada)
+            if (destFile.exists()) {
+                destFile.delete();
+            }
 
-            // Get DownloadManager
+            // Set destination via URI (file://)
+            request.setDestinationUri(Uri.fromFile(destFile));
+
+            // Enqueue download
             DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             currentDownloadId = dm.enqueue(request);
 
@@ -411,6 +406,9 @@ public class MainActivity extends AppCompatActivity {
 
             Toast.makeText(this, "Memulai download: " + fileName, Toast.LENGTH_SHORT).show();
 
+        } catch (SecurityException e) {
+            Toast.makeText(this, "Gagal download (permission denied): " + e.getMessage(), Toast.LENGTH_LONG).show();
+            e.printStackTrace();
         } catch (Exception e) {
             Toast.makeText(this, "Gagal memulai download: " + e.getMessage(), Toast.LENGTH_LONG).show();
             e.printStackTrace();
@@ -423,7 +421,9 @@ public class MainActivity extends AppCompatActivity {
     private void showDownloadProgress(String fileName, long totalBytes) {
         runOnUiThread(() -> {
             downloadProgressText.setText("Mengunduh: " + fileName);
+            downloadProgressText.setTextColor(Color.parseColor("#065F46"));
             downloadProgressBar.setProgress(0);
+            downloadProgressBar.setIndeterminate(false);
             if (totalBytes > 0) {
                 downloadProgressPercent.setText("0% • 0 MB / " + formatBytes(totalBytes));
             } else {
@@ -432,7 +432,6 @@ public class MainActivity extends AppCompatActivity {
             downloadProgressContainer.setVisibility(View.VISIBLE);
         });
 
-        // Start polling progress
         downloadProgressHandler = new Handler(Looper.getMainLooper());
         downloadProgressRunnable = new Runnable() {
             @Override
@@ -480,68 +479,91 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-            if (id == currentDownloadId) {
-                // Stop progress polling
-                if (downloadProgressHandler != null && downloadProgressRunnable != null) {
-                    downloadProgressHandler.removeCallbacks(downloadProgressRunnable);
-                }
+            if (id != currentDownloadId) return;
 
-                // Cek status download
-                DownloadManager.Query query = new DownloadManager.Query();
-                query.setFilterById(id);
-                DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                Cursor cursor = dm.query(query);
-                if (cursor != null && cursor.moveToFirst()) {
-                    @SuppressLint("Range")
-                    int status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS));
-                    @SuppressLint("Range")
-                    String localUri = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
-                    @SuppressLint("Range")
-                    String title = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_TITLE));
-
-                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                        // Set progress ke 100%
-                        downloadProgressBar.setProgress(100);
-                        downloadProgressBar.setIndeterminate(false);
-                        downloadProgressText.setText("Download selesai ✓");
-                        downloadProgressText.setTextColor(Color.parseColor("#059669"));
-                        downloadProgressPercent.setText("Tersimpan di: Downloads/STB Mod Store/");
-
-                        Toast.makeText(context, "Download selesai! Tersimpan di folder Downloads/STB Mod Store/", Toast.LENGTH_LONG).show();
-
-                        // Auto-open file APK untuk install
-                        if (localUri != null) {
-                            try {
-                                Intent installIntent = new Intent(Intent.ACTION_VIEW);
-                                Uri apkUri = Uri.parse(localUri);
-                                installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-                                installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                                installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                context.startActivity(installIntent);
-                            } catch (Exception e) {
-                                // Jika tidak bisa auto-install, beri tahu user lokasi file
-                                Toast.makeText(context, "File tersimpan. Buka File Manager → Downloads → STB Mod Store", Toast.LENGTH_LONG).show();
-                            }
-                        }
-
-                        // Sembunyikan progress setelah 5 detik
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                            downloadProgressContainer.setVisibility(View.GONE);
-                            downloadProgressText.setTextColor(Color.parseColor("#065F46"));
-                        }, 5000);
-                    } else if (status == DownloadManager.STATUS_FAILED) {
-                        downloadProgressText.setText("Download gagal ✗");
-                        downloadProgressText.setTextColor(Color.parseColor("#EF4444"));
-                        Toast.makeText(context, "Download gagal. Coba lagi.", Toast.LENGTH_LONG).show();
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                            downloadProgressContainer.setVisibility(View.GONE);
-                            downloadProgressText.setTextColor(Color.parseColor("#065F46"));
-                        }, 3000);
-                    }
-                    cursor.close();
-                }
-                currentDownloadId = -1;
+            if (downloadProgressHandler != null && downloadProgressRunnable != null) {
+                downloadProgressHandler.removeCallbacks(downloadProgressRunnable);
             }
+
+            // Query status download
+            DownloadManager.Query query = new DownloadManager.Query();
+            query.setFilterById(id);
+            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            Cursor cursor = dm.query(query);
+
+            if (cursor != null && cursor.moveToFirst()) {
+                @SuppressLint("Range")
+                int status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS));
+                @SuppressLint("Range")
+                String localUriStr = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+
+                if (status == DownloadManager.STATUS_SUCCESSFUL && localUriStr != null) {
+                    // Set progress ke 100%
+                    downloadProgressBar.setProgress(100);
+                    downloadProgressBar.setIndeterminate(false);
+                    downloadProgressText.setText("Download selesai ✓");
+                    downloadProgressText.setTextColor(Color.parseColor("#059669"));
+                    downloadProgressPercent.setText("Lokasi: Android/data/com.stbmodstore.app/files/Download/STB Mod Store/");
+
+                    // === AUTO-INSTALL APK VIA FILEPROVIDER ===
+                    try {
+                        // Parse local file path dari URI
+                        Uri localUri = Uri.parse(localUriStr);
+                        File apkFile = new File(localUri.getPath());
+
+                        if (apkFile.exists()) {
+                            // Pakai FileProvider untuk install (anti FileUriExposedException di Android 7+)
+                            Uri apkContentUri = FileProvider.getUriForFile(
+                                context,
+                                FILE_PROVIDER_AUTHORITY,
+                                apkFile
+                            );
+
+                            Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                            installIntent.setDataAndType(apkContentUri, "application/vnd.android.package-archive");
+                            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            installIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+                            context.startActivity(installIntent);
+                            Toast.makeText(context, "APK siap diinstall. Klik Install.", Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(context, "File tidak ditemukan: " + apkFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                        }
+                    } catch (Exception e) {
+                        // Fallback: kasih tau user lokasi file
+                        Toast.makeText(context,
+                            "Download selesai. Buka File Manager → Android/data/com.stbmodstore.app/files/Download/STB Mod Store/",
+                            Toast.LENGTH_LONG).show();
+                        e.printStackTrace();
+                    }
+
+                    // Sembunyikan progress setelah 8 detik
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        downloadProgressContainer.setVisibility(View.GONE);
+                        downloadProgressText.setTextColor(Color.parseColor("#065F46"));
+                    }, 8000);
+
+                } else if (status == DownloadManager.STATUS_FAILED) {
+                    @SuppressLint("Range")
+                    String reason = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_REASON));
+                    downloadProgressText.setText("Download gagal ✗");
+                    downloadProgressText.setTextColor(Color.parseColor("#EF4444"));
+                    downloadProgressPercent.setText("Alasan: " + (reason != null ? reason : "unknown error"));
+
+                    Toast.makeText(context,
+                        "Download gagal. Coba lagi. (Reason: " + reason + ")",
+                        Toast.LENGTH_LONG
+                    ).show();
+
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        downloadProgressContainer.setVisibility(View.GONE);
+                        downloadProgressText.setTextColor(Color.parseColor("#065F46"));
+                    }, 5000);
+                }
+                cursor.close();
+            }
+            currentDownloadId = -1;
         }
     };
 
