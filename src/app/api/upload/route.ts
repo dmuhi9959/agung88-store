@@ -1,15 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
+import { isAdmin } from '@/lib/auth'
 
 const ALLOWED_FILE_EXT = ['.zip', '.apk', '.rar', '.7z', '.img', '.bin', '.tar', '.gz']
 const ALLOWED_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg']
 const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500 MB
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10 MB
 
+// POST - upload file APK atau icon/screenshot (admin only)
 export async function POST(req: NextRequest) {
   try {
+    // Check admin access
+    const admin = await isAdmin()
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, error: 'Akses ditolak. Login admin diperlukan.' },
+        { status: 403 }
+      )
+    }
+
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const type = (formData.get('type') as string) || 'mod'
@@ -38,7 +50,7 @@ export async function POST(req: NextRequest) {
       allowed = ALLOWED_IMAGE_EXT
     } else {
       return NextResponse.json(
-        { success: false, error: 'Tipe upload tidak valid' },
+        { success: false, error: 'Tipe upload tidak valid. Gunakan: mod, screenshot, atau icon' },
         { status: 400 }
       )
     }
@@ -92,7 +104,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('POST /api/upload error:', error)
     return NextResponse.json(
-      { success: false, error: 'Gagal mengunggah file' },
+      { success: false, error: 'Gagal mengunggah file. Cek koneksi atau coba lagi.' },
       { status: 500 }
     )
   }
