@@ -812,6 +812,66 @@ function SettingsView({ onBack }: { onBack: () => void }) {
           </div>
         </Card>
 
+        {/* DOWNLOAD APK SECTION - paling penting! */}
+        <div className="pt-3 pb-1">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Download className="h-3 w-3" />
+            Download APK Aplikasi
+          </div>
+        </div>
+
+        {/* APK Store - untuk STB/User */}
+        <Card className="p-4 border-2 border-primary/30 bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
+          <div className="flex items-start gap-3">
+            <div className="size-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+              <Tv className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-sm">JASA ROOT CIKAMPEK</h3>
+                <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  v1.4.0 • 5.9 MB
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                APK untuk STB / Android TV. User bisa lihat daftar APK & download.
+              </p>
+              <a href="/downloads/jasa-root-cikampek-v1.4.0.apk" download>
+                <Button className="w-full mt-3 gap-1.5 bg-primary hover:bg-primary/90" size="sm">
+                  <Download className="h-4 w-4" />
+                  Download APK Store
+                </Button>
+              </a>
+            </div>
+          </div>
+        </Card>
+
+        {/* APK Admin - untuk HP Admin */}
+        <Card className="p-4 border-2 border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
+          <div className="flex items-start gap-3">
+            <div className="size-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shrink-0">
+              <Shield className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-sm">JASA ROOT Admin</h3>
+                <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  v1.0.0 • 5.9 MB
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                APK untuk HP Admin. Upload & hapus APK dari store.
+              </p>
+              <a href="/downloads/jasa-root-admin-v1.0.0.apk" download>
+                <Button className="w-full mt-3 gap-1.5 bg-amber-500 hover:bg-amber-600" size="sm">
+                  <Download className="h-4 w-4" />
+                  Download APK Admin
+                </Button>
+              </a>
+            </div>
+          </div>
+        </Card>
+
         {/* Info Card */}
         <Card className="p-4 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 border-primary/20">
           <div className="flex items-start gap-3">
