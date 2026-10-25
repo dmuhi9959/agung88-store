@@ -6,7 +6,8 @@ import {
   Search, Menu, X, Download, Star, Trash2, Upload as UploadIcon,
   Loader2, Shield, LogOut, FileUp, Tag, Calendar, User, HardDrive,
   CheckCircle, AlertCircle, Package, Filter, Lock, Eye, Cpu,
-  Plus, Home as HomeIcon, Folder, Image as ImageIcon, Pencil, Boxes
+  Plus, Home as HomeIcon, Folder, Image as ImageIcon, Pencil, Boxes,
+  RefreshCw, Settings, Tv, PlayCircle, ChevronRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import type { Mod, UploadResult } from '@/lib/types'
 
-type View = 'store' | 'admin'
+type View = 'store' | 'admin' | 'settings'
 
 export default function Home() {
   const [view, setView] = useState<View>('store')
@@ -240,130 +241,208 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Header - tipis, simpel */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex h-14 items-center gap-3 px-4">
+    <div className="min-h-screen flex bg-background">
+      {/* Sidebar kiri - seperti screenshot referensi */}
+      <aside className="hidden md:flex flex-col w-56 border-r border-border bg-sidebar/50 sticky top-0 h-screen shrink-0">
+        {/* Logo */}
+        <div className="p-4 border-b border-border">
           <button
-            onClick={() => switchView('store')}
-            className="flex items-center gap-2 shrink-0"
+            onClick={() => setView('store')}
+            className="flex items-center gap-2 w-full"
           >
-            {/* Logo JASA ROOT CIKAMPEK */}
-            { }
             <img
               src="/logo.png"
               alt="JASA ROOT CIKAMPEK"
-              className="size-8 rounded-lg object-cover"
+              className="size-10 rounded-lg object-cover shrink-0"
             />
-            <div className="flex flex-col leading-tight hidden sm:flex">
-              <span className="font-bold text-xs">JASA ROOT CIKAMPEK</span>
-              <span className="text-[9px] text-muted-foreground -mt-0.5">STORE APK</span>
+            <div className="flex flex-col leading-tight text-left min-w-0">
+              <span className="font-bold text-[11px] truncate">JASA ROOT</span>
+              <span className="text-[9px] text-muted-foreground">CIKAMPEK</span>
             </div>
           </button>
+        </div>
 
-          {/* Search - tengah */}
-          <div className="flex-1 max-w-xl mx-auto relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Cari APK..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') fetchMods() }}
-              className="pl-9 h-9 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
+        {/* Menu */}
+        <nav className="flex-1 p-2 space-y-1">
+          <SidebarMenuItem
+            icon={HomeIcon}
+            label="Beranda"
+            active={view === 'store'}
+            onClick={() => setView('store')}
+          />
+          <SidebarMenuItem
+            icon={Package}
+            label="Aplikasi"
+            active={view === 'store'}
+            onClick={() => setView('store')}
+            badge={mods.length}
+          />
+          <SidebarMenuItem
+            icon={Settings}
+            label="Pengaturan"
+            active={view === 'settings'}
+            onClick={() => setView('settings')}
+          />
+
+          <div className="h-px bg-border my-2" />
+
+          {isAdmin ? (
+            <>
+              <SidebarMenuItem
+                icon={Shield}
+                label="Admin Panel"
+                active={view === 'admin'}
+                onClick={() => setView('admin')}
+              />
+              <SidebarMenuItem
+                icon={LogOut}
+                label="Logout"
+                onClick={handleLogout}
+              />
+            </>
+          ) : (
+            <SidebarMenuItem
+              icon={Lock}
+              label="Login Admin"
+              onClick={() => setView('admin')}
             />
-          </div>
+          )}
+        </nav>
 
-          {/* Admin button */}
-          {!authChecking && (
-            isAdmin ? (
-              <div className="flex items-center gap-1">
-                {view === 'store' && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => switchView('admin')}
-                    className="gap-1.5 bg-primary hover:bg-primary/90"
-                  >
-                    <Shield className="h-4 w-4" />
-                    <span className="hidden sm:inline">Admin Panel</span>
-                  </Button>
-                )}
-                {view === 'admin' && (
+        {/* Footer sidebar */}
+        <div className="p-3 border-t border-border text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <Tv className="h-3 w-3 text-primary" />
+            <span className="font-semibold">JASA ROOT CIKAMPEK</span>
+          </div>
+          <p className="mt-1">ROOT • UNLOCK • INSTALL APK</p>
+        </div>
+      </aside>
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar - search + refresh + admin (mobile) */}
+        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+          <div className="flex h-14 items-center gap-3 px-4">
+            {/* Mobile: logo kecil */}
+            <button
+              onClick={() => setView('store')}
+              className="md:hidden flex items-center gap-2 shrink-0"
+            >
+              <img
+                src="/logo.png"
+                alt="JASA ROOT CIKAMPEK"
+                className="size-8 rounded-lg object-cover"
+              />
+            </button>
+
+            {/* Search */}
+            <div className="flex-1 max-w-2xl relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Cari aplikasi..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') fetchMods() }}
+                className="pl-9 pr-9 h-9 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
+              />
+              {search && (
+                <button
+                  onClick={() => { setSearch(''); fetchMods() }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+
+            {/* Refresh button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={fetchMods}
+              disabled={loading}
+              aria-label="Refresh"
+              title="Refresh daftar APK"
+              className="shrink-0"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+
+            {/* Admin button (mobile / atau fallback) */}
+            {!authChecking && (
+              isAdmin ? (
+                view !== 'admin' && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => switchView('store')}
-                    className="gap-1.5"
+                    onClick={() => setView('admin')}
+                    className="gap-1.5 md:hidden"
                   >
-                    <HomeIcon className="h-4 w-4" />
-                    <span className="hidden sm:inline">Lihat Store</span>
+                    <Shield className="h-4 w-4" />
                   </Button>
-                )}
+                )
+              ) : (
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleLogout}
-                  aria-label="Logout"
-                  title="Logout admin"
+                  onClick={() => setView('admin')}
+                  aria-label="Admin login"
+                  title="Login admin"
+                  className="md:hidden"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <Lock className="h-4 w-4" />
                 </Button>
-              </div>
+              )
+            )}
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto">
+          {view === 'store' && (
+            <StoreView
+              mods={mods}
+              loading={loading}
+              search={search}
+              isAdmin={isAdmin}
+              onOpenDetail={openDetail}
+              onDownload={handleDownload}
+              onGoAdmin={() => setView('admin')}
+              downloadProgress={downloadProgress}
+            />
+          )}
+          {view === 'settings' && (
+            <SettingsView onBack={() => setView('store')} />
+          )}
+          {view === 'admin' && (
+            isAdmin ? (
+              <AdminView
+                mods={mods}
+                onRefresh={fetchMods}
+                onLogout={handleLogout}
+                onBackToStore={() => setView('store')}
+              />
             ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => switchView('admin')}
-                aria-label="Admin login"
-                title="Login admin"
-              >
-                <Lock className="h-4 w-4" />
-              </Button>
+              <LoginView
+                onLoginSuccess={() => {
+                  setIsAdmin(true)
+                  setView('admin')
+                }}
+                onBack={() => setView('store')}
+              />
             )
           )}
-        </div>
-      </header>
+        </main>
 
-      {/* Main content */}
-      <main className="flex-1">
-        {view === 'store' && (
-          <StoreView
-            mods={mods}
-            loading={loading}
-            search={search}
-            isAdmin={isAdmin}
-            onOpenDetail={openDetail}
-            onDownload={handleDownload}
-            onGoAdmin={() => switchView('admin')}
-            downloadProgress={downloadProgress}
-          />
-        )}
-        {view === 'admin' && (
-          isAdmin ? (
-            <AdminView
-              mods={mods}
-              onRefresh={fetchMods}
-              onLogout={handleLogout}
-              onBackToStore={() => switchView('store')}
-            />
-          ) : (
-            <LoginView
-              onLoginSuccess={() => {
-                setIsAdmin(true)
-                setView('admin')
-              }}
-              onBack={() => setView('store')}
-            />
-          )
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border mt-auto">
-        <div className="px-4 py-3 text-center text-[10px] text-muted-foreground">
-          {mods.length} APK tersedia • JASA ROOT CIKAMPEK
-        </div>
-      </footer>
+        {/* Footer */}
+        <footer className="border-t border-border mt-auto">
+          <div className="px-4 py-3 text-center text-[10px] text-muted-foreground">
+            {mods.length} APK tersedia • JASA ROOT CIKAMPEK
+          </div>
+        </footer>
+      </div>
 
       {/* Detail Dialog */}
       <DetailDialog
@@ -375,6 +454,38 @@ export default function Home() {
         isAdmin={isAdmin}
       />
     </div>
+  )
+}
+
+// Sidebar menu item helper
+function SidebarMenuItem({
+  icon: Icon, label, active, onClick, badge,
+}: {
+  icon: any
+  label: string
+  active?: boolean
+  onClick: () => void
+  badge?: number
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+        active
+          ? 'bg-primary text-primary-foreground'
+          : 'hover:bg-accent text-foreground/80'
+      }`}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="flex-1 text-left truncate">{label}</span>
+      {badge !== undefined && badge > 0 && (
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+          active ? 'bg-primary-foreground/20' : 'bg-muted'
+        }`}>
+          {badge}
+        </span>
+      )}
+    </button>
   )
 }
 
@@ -393,41 +504,31 @@ function StoreView({
   downloadProgress: Record<string, { percent: number; loaded: number; total: number }>
 }) {
   return (
-    <div className="px-3 sm:px-4 py-4">
-      {/* Title bar tipis */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-            <Package className="h-5 w-5 text-primary" />
-            Daftar APK
-          </h1>
-          {!loading && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {mods.length} APK siap download
-            </p>
-          )}
-        </div>
-        {!isAdmin && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onGoAdmin}
-            className="gap-1.5 text-xs"
-          >
-            <Lock className="h-3.5 w-3.5" />
-            Admin
-          </Button>
-        )}
+    <div className="px-4 sm:px-6 py-5 max-w-5xl mx-auto">
+      {/* Title */}
+      <div className="mb-5">
+        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+          <Package className="h-5 w-5 text-primary" />
+          Daftar Aplikasi
+        </h1>
+        <p className="text-xs text-muted-foreground mt-1">
+          Aplikasi yang tersedia untuk STB / Android TV Anda
+        </p>
       </div>
 
-      {/* Loading state */}
+      {/* Loading skeleton - horizontal cards */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="p-4 space-y-3">
-              <div className="h-5 w-3/4 bg-muted rounded animate-pulse" />
-              <div className="h-4 w-full bg-muted rounded animate-pulse" />
-              <div className="h-9 w-full bg-muted rounded animate-pulse" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="p-4 flex gap-4 items-center">
+              <div className="size-16 rounded-xl bg-muted animate-pulse shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-5 w-1/3 bg-muted rounded animate-pulse" />
+                <div className="h-4 w-full bg-muted rounded animate-pulse" />
+                <div className="h-4 w-2/3 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-1/4 bg-muted rounded animate-pulse" />
+              </div>
+              <div className="h-9 w-24 bg-muted rounded animate-pulse shrink-0" />
             </Card>
           ))}
         </div>
@@ -437,18 +538,18 @@ function StoreView({
             <Package className="h-8 w-8 text-muted-foreground" />
           </div>
           <h3 className="font-semibold mb-1">Belum ada APK</h3>
-          <p className="text-xs text-muted-foreground mb-4">
+          <p className="text-xs text-muted-foreground">
             {search ? `Tidak ada hasil untuk "${search}"` : 'APK belum tersedia. Hubungi admin untuk upload.'}
           </p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="space-y-3">
           {mods.map((mod, i) => (
             <motion.div
               key={mod.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.2) }}
+              transition={{ duration: 0.2, delay: Math.min(i * 0.05, 0.3) }}
             >
               <ApkCard
                 mod={mod}
@@ -458,6 +559,13 @@ function StoreView({
               />
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {/* Footer info */}
+      {!loading && mods.length > 0 && (
+        <div className="mt-6 text-center text-[10px] text-muted-foreground">
+          Menampilkan {mods.length} aplikasi
         </div>
       )}
     </div>
@@ -475,109 +583,288 @@ function ApkCard({
   const isDownloading = !!progress
   const percent = progress?.percent ?? 0
   return (
-    <Card className="p-4 hover:shadow-md hover:border-primary/30 transition-all duration-200 flex flex-col gap-3">
-      <div onClick={onOpen} className="cursor-pointer flex-1">
-        <div className="flex items-start gap-2 mb-2">
-          <div className="size-10 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center shrink-0">
-            <Package className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm leading-tight line-clamp-2">{mod.name}</h3>
-            <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-              <Badge variant="outline" className="text-[10px] h-4 px-1.5">{mod.version}</Badge>
-              <span className="flex items-center gap-0.5">
-                <Download className="h-2.5 w-2.5" />
-                {formatNum(mod.downloads)}
-              </span>
-              <span className="flex items-center gap-0.5">
-                <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
-                {mod.rating.toFixed(1)}
-              </span>
-            </div>
-          </div>
+    <Card className="p-4 hover:shadow-md hover:border-primary/30 transition-all duration-200 flex gap-3 sm:gap-4 items-start sm:items-center">
+      {/* Icon APK */}
+      <button
+        onClick={onOpen}
+        className="size-16 sm:size-20 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center shrink-0 hover:scale-105 transition-transform cursor-pointer"
+        aria-label={`Detail ${mod.name}`}
+      >
+        {mod.iconUrl ? (
+           
+          <img src={mod.iconUrl} alt={mod.name} className="w-full h-full object-cover rounded-xl" />
+        ) : (
+          <Package className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
+        )}
+      </button>
+
+      {/* Info - tengah */}
+      <div className="flex-1 min-w-0" onClick={onOpen}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-semibold text-base sm:text-lg leading-tight truncate">{mod.name}</h3>
+          {mod.featured && (
+            <Badge variant="secondary" className="gap-0.5 text-[9px] h-4 px-1.5 bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+              Featured
+            </Badge>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{mod.description}</p>
-        {(mod.developer || mod.fileSize) && (
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            {mod.developer && (
-              <span className="flex items-center gap-1 truncate">
-                <User className="h-2.5 w-2.5" />
-                <span className="truncate max-w-[100px]">{mod.developer}</span>
+
+        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1 sm:line-clamp-2 mt-0.5">
+          {mod.description}
+        </p>
+
+        {/* Meta info */}
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] sm:text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Download className="h-3 w-3" />
+            {formatNum(mod.downloads)}
+          </span>
+          <span className="flex items-center gap-1">
+            <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+            {mod.rating.toFixed(1)}
+          </span>
+          {mod.fileSize && (
+            <span className="flex items-center gap-1">
+              <HardDrive className="h-3 w-3" />
+              {mod.fileSize}
+            </span>
+          )}
+          {mod.version && (
+            <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+              {mod.version}
+            </Badge>
+          )}
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            Diperbarui {formatRelativeTime(mod.createdAt)}
+          </span>
+        </div>
+
+        {/* Progress bar download - muncul saat sedang download */}
+        {isDownloading && (
+          <div className="space-y-1 mt-2 max-w-md">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="flex items-center gap-1 text-primary font-medium">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {percent >= 100 ? 'Selesai!' : 'Mengunduh APK...'}
               </span>
-            )}
-            {mod.fileSize && (
-              <span className="flex items-center gap-1">
-                <HardDrive className="h-2.5 w-2.5" />
-                {mod.fileSize}
-              </span>
-            )}
+              <span className="font-mono font-bold text-primary">{percent}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300 relative"
+                style={{ width: `${percent}%` }}
+              >
+                <div className="absolute inset-0 bg-white/20 animate-pulse" />
+              </div>
+            </div>
+            <div className="text-[9px] text-muted-foreground font-mono">
+              {progress.loaded > 0 ? formatBytes(progress.loaded) : '0 B'} / {progress.total > 0 ? formatBytes(progress.total) : mod.fileSize || '?'}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Progress bar download - muncul saat sedang download */}
-      {isDownloading && (
-        <div className="space-y-1.5 -mt-1">
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="flex items-center gap-1 text-primary font-medium">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Mengunduh APK...
-            </span>
-            <span className="font-mono font-bold text-primary">{percent}%</span>
-          </div>
-          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300 relative"
-              style={{ width: `${percent}%` }}
-            >
-              <div className="absolute inset-0 bg-white/20 animate-pulse" />
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-[9px] text-muted-foreground font-mono">
-            <span>{progress.loaded > 0 ? formatBytes(progress.loaded) : '0 B'} / {progress.total > 0 ? formatBytes(progress.total) : mod.fileSize || '?'}</span>
-            <span>{percent >= 100 ? 'Selesai!' : 'Sedang mengunduh...'}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Tombol Download BESAR - berubah jadi "Downloading..." saat proses */}
-      <Button
-        onClick={onDownload}
-        disabled={isDownloading}
-        className={`w-full gap-2 h-10 transition-all ${
-          isDownloading
-            ? 'bg-muted text-muted-foreground cursor-not-allowed'
-            : 'bg-primary hover:bg-primary/90'
-        }`}
-        size="lg"
-      >
-        {isDownloading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Downloading... {percent}%
-          </>
-        ) : (
-          <>
-            <Download className="h-4 w-4" />
-            Download APK
-          </>
-        )}
-      </Button>
+      {/* Tombol Install / Download - kanan */}
+      <div className="shrink-0 flex flex-col gap-2 items-end">
+        <Button
+          onClick={onDownload}
+          disabled={isDownloading}
+          size="sm"
+          className={`gap-1.5 h-9 px-4 sm:px-5 transition-all ${
+            isDownloading
+              ? 'bg-muted text-muted-foreground cursor-not-allowed'
+              : 'bg-primary hover:bg-primary/90'
+          }`}
+        >
+          {isDownloading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="hidden sm:inline">{percent}%</span>
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4" />
+              <span>Install</span>
+            </>
+          )}
+        </Button>
+        <button
+          onClick={onOpen}
+          className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+        >
+          Detail →
+        </button>
+      </div>
     </Card>
   )
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const seconds = Math.floor(diffMs / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  const weeks = Math.floor(days / 7)
+  const months = Math.floor(days / 30)
+  const years = Math.floor(days / 365)
+
+  if (years > 0) return `${years} tahun lalu`
+  if (months > 0) return `${months} bulan lalu`
+  if (weeks > 0) return `${weeks} minggu lalu`
+  if (days > 0) return `${days} hari lalu`
+  if (hours > 0) return `${hours} jam lalu`
+  if (minutes > 0) return `${minutes} menit lalu`
+  return 'baru saja'
 }
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return String(n)
+}
+
+// ============= SETTINGS VIEW =============
+
+function SettingsView({ onBack }: { onBack: () => void }) {
+  const [clearing, setClearing] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
+
+  const handleClearCache = async () => {
+    if (!confirm('Hapus cache aplikasi? Daftar APK akan dimuat ulang dari server.')) return
+    setClearing(true)
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((k) => caches.delete(k)))
+      }
+      toast.success('Cache berhasil dihapus')
+      setTimeout(() => window.location.reload(), 800)
+    } catch {
+      toast.error('Gagal menghapus cache')
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  return (
+    <div className="px-4 sm:px-6 py-5 max-w-3xl mx-auto">
+      <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 mb-5">
+        <Settings className="h-5 w-5 text-primary" />
+        Pengaturan
+      </h1>
+
+      <div className="space-y-3">
+        {/* About */}
+        <Card className="p-4">
+          <button
+            onClick={() => setShowAbout((o) => !o)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Tv className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm">Tentang Aplikasi</div>
+                <div className="text-xs text-muted-foreground">Info versi & developer</div>
+              </div>
+            </div>
+            <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${showAbout ? 'rotate-90' : ''}`} />
+          </button>
+          {showAbout && (
+            <div className="mt-3 pt-3 border-t border-border text-xs space-y-2 text-muted-foreground">
+              <div className="flex justify-between">
+                <span>Nama Aplikasi</span>
+                <span className="font-mono font-medium text-foreground">JASA ROOT CIKAMPEK</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Versi</span>
+                <span className="font-mono font-medium text-foreground">1.3.0</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Developer</span>
+                <span className="font-medium text-foreground">JASA ROOT CIKAMPEK</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Layanan</span>
+                <span className="font-medium text-foreground">ROOT • UNLOCK • INSTALL APK</span>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Clear Cache */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="size-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <RefreshCw className="h-4 w-4 text-amber-500" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm">Hapus Cache</div>
+                <div className="text-xs text-muted-foreground">Bersihkan cache aplikasi web</div>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearCache}
+              disabled={clearing}
+              className="gap-1.5 text-xs"
+            >
+              {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Hapus
+            </Button>
+          </div>
+        </Card>
+
+        {/* Admin Login */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="size-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Shield className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm">Admin Panel</div>
+                <div className="text-xs text-muted-foreground">Upload & hapus APK</div>
+              </div>
+            </div>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onBack}
+              className="gap-1.5 text-xs bg-primary hover:bg-primary/90"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Login Admin
+            </Button>
+          </div>
+        </Card>
+
+        {/* Info Card */}
+        <Card className="p-4 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 border-primary/20">
+          <div className="flex items-start gap-3">
+            <div className="size-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+              <Tv className="h-4 w-4 text-white" />
+            </div>
+            <div className="text-xs">
+              <div className="font-bold text-sm mb-1">JASA ROOT CIKAMPEK</div>
+              <p className="text-muted-foreground">
+                Store APK untuk STB / Android TV. Download aplikasi dengan mudah,
+                cepat, dan gratis. Admin bisa upload APK baru lewat menu Admin Panel.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  )
 }
 
 // ============= DETAIL DIALOG =============

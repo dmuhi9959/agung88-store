@@ -378,3 +378,65 @@ Stage Summary:
   * /home/z/my-project/public/downloads/jasa-root-cikampek-v1.3.0.apk (5.9 MB)
 - Semua fitur download (RBTV+ dengan progress bar + auto-install) tetap berfungsi
 - Tidak ada breaking changes - database, admin login, dan semua fitur lain tetap sama
+
+---
+Task ID: STB-Mod-Store-NewLayout-AddAPKs
+Agent: Main Agent (Z.ai)
+Task: User minta update tampilan web jadi mirip screenshot referensi (CIKAMPEK ANDROID TV APP STORE dengan sidebar kiri + card horizontal Install). Tambah 2 APK baru: MovieBoxTV dan VORX TV.
+
+Work Log:
+- User upload 2 APK baru:
+  * MovieBoxTV.apk (39 MB) - com.community.mbox.tv, version 1.1.11.0915
+  * VORX TV v1.23-news-release.apk (20 MB) - com.ramz1649.itachitv, version 1.23-new-release
+- Buat scripts/upload-new-apks.ts:
+  * Copy file APK dari /upload/ ke /public/uploads/mods/
+  * Insert record baru ke database (atau update kalau slug sudah ada)
+  * Set featured=true supaya muncul dengan badge bintang
+- Run script: berhasil upload 2 APK baru, total 3 APK di store (RBTV+, MovieBox TV, VORX TV)
+- Update layout web sesuai screenshot referensi:
+  * Buat sidebar kiri (lebar 224px / w-56) dengan:
+    - Logo JASA ROOT CIKAMPEK (klik untuk ke Beranda)
+    - Menu: Beranda, Aplikasi (dengan badge count APK), Pengaturan
+    - Menu Admin: Login Admin (jika belum login) atau Admin Panel + Logout (jika sudah login)
+    - Footer sidebar: "JASA ROOT CIKAMPEK" + "ROOT • UNLOCK • INSTALL APK"
+  * Top bar (di atas content area): Search bar "Cari aplikasi..." + tombol Refresh + tombol admin (mobile)
+  * Main content: List APK horizontal card
+  * Mobile: sidebar hidden (md:flex), logo kecil tampil di header
+- Tambah SettingsView component baru (untuk menu "Pengaturan"):
+  * Card "Tentang Aplikasi" (collapsible): nama, versi, developer, layanan
+  * Card "Hapus Cache": clear browser cache + reload page
+  * Card "Admin Panel": shortcut ke login admin
+  * Card info gradient: deskripsi aplikasi
+- Update ApkCard jadi horizontal layout (mirip screenshot referensi):
+  * Icon APK besar (size-16 sm:size-20) di kiri
+  * Info tengah: nama, badge featured, deskripsi, meta info (downloads, rating, size, version, "Diperbarui X waktu lalu")
+  * Tombol "Install" di kanan (size sm, dengan icon Download)
+  * Tombol "Detail →" kecil di bawah tombol Install
+  * Progress bar download muncul di tengah saat download berjalan
+- Buat helper formatRelativeTime() untuk tampilkan "baru saja", "X menit lalu", "X jam lalu", "X hari lalu", "X minggu lalu", "X bulan lalu", "X tahun lalu"
+- Buat helper SidebarMenuItem component untuk item menu sidebar (icon + label + active state + badge)
+- Verifikasi dengan agent-browser:
+  * Halaman load 200 OK
+  * Sidebar kiri tampil dengan logo + 4 menu (Beranda, Aplikasi, Pengaturan, Login Admin)
+  * H1: "Daftar Aplikasi"
+  * 3 APK card horizontal: VORX TV, MovieBox TV, RBTV+
+  * Setiap card ada tombol "Install" + "Detail →"
+  * Info "Diperbarui X waktu lalu" muncul (VORX: 3 menit lalu, MovieBox: 3 menit lalu, RBTV+: 1 jam lalu)
+  * Tombol Refresh di header (animate-spin saat loading)
+  * Klik menu "Pengaturan" → pindah ke halaman settings dengan 4 card (Tentang, Hapus Cache, Admin Panel, Info)
+  * Badge count "3" di menu Aplikasi (jumlah APK di store)
+- Lint bersih (0 errors, 0 warnings)
+
+Stage Summary:
+- Tampilan aplikasi sekarang mirip dengan screenshot referensi user:
+  * Sidebar kiri dengan menu Beranda, Aplikasi, Pengaturan, Admin
+  * Top bar dengan search + refresh button
+  * Card APK horizontal dengan icon besar + info + tombol Install
+  * Info "Diperbarui X waktu lalu" di setiap card
+- 3 APK tersedia di store:
+  1. VORX TV v1.23 (19.93 MB) - 3 menit lalu
+  2. MovieBox TV v1.1.11.0915 (38.15 MB) - 3 menit lalu
+  3. RBTV+ v3.0.323 (14.76 MB) - 1 jam lalu (sudah ada sebelumnya)
+- Menu Admin tetap berfungsi (login admin/admin123) untuk upload/hapus APK
+- Settings page baru dengan fitur: About, Clear Cache, Admin Login shortcut
+- Mobile responsive: sidebar hidden di mobile, logo kecil tampil di header
