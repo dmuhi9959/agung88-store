@@ -1318,8 +1318,25 @@ function UploadDialog({
     fd.append('file', file)
     fd.append('type', type)
     const res = await fetch('/api/upload', { method: 'POST', body: fd })
+
+    // Handle non-JSON response (404, 500, dll)
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Server error HTTP ${res.status}. API tidak ditemukan atau server bermasalah.`)
+    }
+
     const json = await res.json()
-    if (!json.success) throw new Error(json.error || 'Upload gagal')
+    if (!json.success) {
+      // Handle specific status codes
+      if (res.status === 403) {
+        throw new Error('Sesi admin berakhir. Silakan login ulang.')
+      } else if (res.status === 400) {
+        throw new Error(json.error || 'File tidak valid')
+      } else if (res.status === 413) {
+        throw new Error('File terlalu besar (maks 500 MB)')
+      }
+      throw new Error(json.error || `Upload gagal (HTTP ${res.status})`)
+    }
     return json.data
   }
 
@@ -1379,7 +1396,9 @@ function UploadDialog({
       return
     }
     if (!modFile) {
-      toast.error('File APK belum diunggah')
+      toast.error('File APK belum diunggah', {
+        description: 'Pilih file APK (.apk, .zip, .rar) dulu sebelum publikasi.',
+      })
       return
     }
     setSaving(true)
@@ -1398,6 +1417,16 @@ function UploadDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+
+      // Handle non-JSON response (misal 404 API tidak ada)
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        toast.error('Server error - API tidak ditemukan', {
+          description: `HTTP ${res.status}. Hubungi developer.`,
+        })
+        return
+      }
+
       const json = await res.json()
       if (json.success) {
         toast.success('APK berhasil dipublikasikan!', {
@@ -1406,16 +1435,30 @@ function UploadDialog({
         resetForm()
         onSuccess()
       } else {
-        // Handle 403 error
+        // Handle specific status codes
         if (res.status === 403) {
-          toast.error('Sesi admin berakhir. Silakan login ulang.')
+          toast.error('Sesi admin berakhir', {
+            description: 'Silakan login ulang ke admin panel.',
+          })
           onOpenChange(false)
+        } else if (res.status === 400) {
+          toast.error('Data tidak valid', {
+            description: json.error || 'Cek field form dan coba lagi.',
+          })
+        } else if (res.status === 413) {
+          toast.error('File terlalu besar', {
+            description: 'Ukuran file melebihi batas 500 MB.',
+          })
         } else {
-          throw new Error(json.error)
+          toast.error('Gagal upload APK', {
+            description: json.error || `HTTP ${res.status}`,
+          })
         }
       }
     } catch (e: any) {
-      toast.error(e.message || 'Gagal menyimpan APK')
+      toast.error('Gagal terhubung ke server', {
+        description: e.message || 'Cek koneksi internet dan coba lagi.',
+      })
     } finally {
       setSaving(false)
     }
