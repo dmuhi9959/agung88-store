@@ -1,0 +1,39 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Mod {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String
+  version     String
+  developer   String
+  category    String
+  stbType     String
+  tags        String   @default("")
+  fileSize    String   @default("")
+  fileName    String   @default("")
+  filePath    String   @default("")
+  screenshots String   @default("")
+  changelog   String   @default("")
+  iconUrl     String   @default("")
+  downloads   Int      @default(0)
+  rating      Float    @default(5.0)
+  featured    Boolean  @default(false)
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([stbType])
+  @@index([featured])
+}
