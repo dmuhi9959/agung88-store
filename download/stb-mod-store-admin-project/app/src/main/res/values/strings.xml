@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">JASA ROOT Admin</string>
-    <string name="loading_message">Memuat Admin Panel...</string>
+    <string name="app_name">AGUNG88 Admin</string>
+    <string name="loading_message">Memuat AGUNG88 Admin...</string>
     <string name="offline_message">Tidak ada koneksi internet</string>
 </resources>

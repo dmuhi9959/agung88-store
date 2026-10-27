@@ -118,6 +118,24 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
+            // Clear WebView cache + service worker supaya tidak load halaman lama
+            webView.clearCache(true);
+            webView.clearHistory();
+            // Force clear service worker registrations di WebView
+            webView.evaluateJavascript(
+                "if ('serviceWorker' in navigator) {" +
+                "  navigator.serviceWorker.getRegistrations().then(function(regs) {" +
+                "    regs.forEach(function(r) { r.unregister(); });" +
+                "  });" +
+                "}" +
+                "if ('caches' in window) {" +
+                "  caches.keys().then(function(keys) {" +
+                "    keys.forEach(function(k) { caches.delete(k); });" +
+                "  });" +
+                "}" +
+                "localStorage.clear();",
+                null
+            );
             webView.loadUrl(TARGET_URL);
         }
     }
