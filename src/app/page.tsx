@@ -250,170 +250,100 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar kiri - FIXED, tidak ikut scroll */}
-      <aside className="hidden md:flex flex-col w-56 border-r border-border bg-sidebar/50 shrink-0 overflow-hidden">
-        {/* Logo */}
-        <div className="p-4 border-b border-border shrink-0">
-          <button
-            onClick={() => setView('store')}
-            className="flex items-center gap-2 w-full"
-          >
-            <img
-              src="/logo.png"
-              alt="AGUNG88 APP STORE"
-              className="size-10 rounded-lg object-cover shrink-0"
-            />
-            <div className="flex flex-col leading-tight text-left min-w-0">
-              <span className="font-bold text-[11px] truncate">AGUNG88</span>
-              <span className="text-[9px] text-muted-foreground">APP STORE</span>
-            </div>
-          </button>
-        </div>
-
-        {/* Menu - bisa scroll kalau menu panjang */}
-        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          <SidebarMenuItem
-            icon={HomeIcon}
-            label="Beranda"
-            active={view === 'store'}
-            onClick={() => setView('store')}
-          />
-          <SidebarMenuItem
-            icon={Package}
-            label="Aplikasi"
-            active={view === 'store'}
-            onClick={() => setView('store')}
-            badge={mods.length}
-          />
-          <SidebarMenuItem
-            icon={Settings}
-            label="Pengaturan"
-            active={view === 'settings'}
-            onClick={() => setView('settings')}
-          />
-
-          <div className="h-px bg-border my-2" />
-
-          {isAdmin ? (
-            <>
-              <SidebarMenuItem
-                icon={Shield}
-                label="Admin Panel"
-                active={view === 'admin'}
-                onClick={() => setView('admin')}
-              />
-              <SidebarMenuItem
-                icon={LogOut}
-                label="Logout"
-                onClick={handleLogout}
-              />
-            </>
-          ) : (
-            <SidebarMenuItem
-              icon={Lock}
-              label="Login Admin"
-              onClick={() => setView('admin')}
-            />
-          )}
-        </nav>
-
-        {/* Footer sidebar - tetap di bawah */}
-        <div className="p-3 border-t border-border text-[10px] text-muted-foreground shrink-0">
-          <div className="flex items-center gap-1.5">
-            <Tv className="h-3 w-3 text-primary" />
-            <span className="font-semibold">AGUNG88 APP STORE</span>
-          </div>
-          <p className="mt-1">ROOT • UNLOCK • INSTALL APK</p>
-        </div>
-      </aside>
-
-      {/* Main content area - flexible, scrollable inside */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        {/* Top bar - FIXED di atas, tidak ikut scroll */}
-        <header className="border-b border-border bg-background/95 backdrop-blur shrink-0">
-          <div className="flex h-14 items-center gap-3 px-4">
-            {/* Mobile: logo kecil */}
-            <button
-              onClick={() => setView('store')}
-              className="md:hidden flex items-center gap-2 shrink-0"
-            >
+    <div className="h-screen flex flex-col bg-gradient-to-br from-emerald-950 via-background to-teal-950 overflow-hidden">
+      {/* Top bar - simpel: logo + nama + search + refresh */}
+      <header className="border-b border-primary/30 bg-gradient-to-r from-emerald-900/40 via-background to-teal-900/40 shrink-0">
+        <div className="flex h-14 items-center gap-2 sm:gap-3 px-3 sm:px-5">
+          {/* Logo + Nama App */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="size-9 sm:size-10 rounded-lg overflow-hidden ring-2 ring-primary/40 shadow-md">
               <img
                 src="/logo.png"
                 alt="AGUNG88 APP STORE"
-                className="size-8 rounded-lg object-cover"
+                className="w-full h-full object-cover"
               />
-            </button>
-
-            {/* Search */}
-            <div className="flex-1 max-w-2xl relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Cari aplikasi..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') fetchMods() }}
-                className="pl-9 pr-9 h-9 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
-              />
-              {search && (
-                <button
-                  onClick={() => { setSearch(''); fetchMods() }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded"
-                  aria-label="Clear search"
-                >
-                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-              )}
             </div>
+            <div className="flex flex-col leading-tight min-w-0">
+              <span className="font-bold text-xs sm:text-sm truncate text-foreground">
+                AGUNG88
+              </span>
+              <span className="text-[9px] sm:text-[10px] text-primary/80 hidden sm:block">
+                APP STORE
+              </span>
+            </div>
+          </div>
 
-            {/* Refresh button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={fetchMods}
-              disabled={loading}
-              aria-label="Refresh"
-              title="Refresh daftar APK"
-              className="shrink-0"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-
-            {/* Admin button (mobile / atau fallback) */}
-            {!authChecking && (
-              isAdmin ? (
-                view !== 'admin' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setView('admin')}
-                    className="gap-1.5 md:hidden"
-                  >
-                    <Shield className="h-4 w-4" />
-                  </Button>
-                )
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setView('admin')}
-                  aria-label="Admin login"
-                  title="Login admin"
-                  className="md:hidden"
-                >
-                  <Lock className="h-4 w-4" />
-                </Button>
-              )
+          {/* Search bar */}
+          <div className="flex-1 max-w-md mx-2 relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Cari APK..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') fetchMods() }}
+              className="pl-8 pr-7 h-8 text-xs bg-background/60 border-primary/30 focus-visible:ring-1 focus-visible:ring-primary"
+            />
+            {search && (
+              <button
+                onClick={() => { setSearch(''); fetchMods() }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-muted rounded"
+                aria-label="Clear"
+              >
+                <X className="h-3 w-3 text-muted-foreground" />
+              </button>
             )}
           </div>
-        </header>
 
-        {/* Content - SCROLLABLE, terpisah dari header */}
-        <main className="flex-1 overflow-y-auto">
-          {view === 'store' && (
-            <StoreView
-              mods={mods}
-              loading={loading}
+          {/* Refresh button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={fetchMods}
+            disabled={loading}
+            aria-label="Refresh"
+            title="Refresh daftar APK"
+            className="shrink-0 size-9 text-foreground hover:bg-primary/20"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+
+          {/* Admin button - HANYA di PC (hidden di mobile/TV/STB) */}
+          {!authChecking && isDesktop && (
+            isAdmin ? (
+              view !== 'admin' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setView('admin')}
+                  className="gap-1.5 ml-auto border-primary/50 text-primary hover:bg-primary/20"
+                >
+                  <Shield className="h-4 w-4" />
+                  <span className="hidden lg:inline">Admin Panel</span>
+                </Button>
+              )
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setView('admin')}
+                aria-label="Login admin"
+                title="Login admin"
+                className="ml-auto gap-1.5 text-foreground hover:bg-primary/20"
+              >
+                <Lock className="h-4 w-4" />
+                <span className="hidden lg:inline">Login Admin</span>
+              </Button>
+            )
+          )}
+        </div>
+      </header>
+
+      {/* Content - SCROLLABLE */}
+      <main className="flex-1 overflow-y-auto">
+        {view === 'store' && (
+          <StoreView
+            mods={mods}
+            loading={loading}
               search={search}
               isAdmin={isAdmin}
               onOpenDetail={openDetail}
@@ -445,13 +375,12 @@ export default function Home() {
           )}
         </main>
 
-        {/* Footer - tetap di bawah, tidak ikut scroll */}
-        <footer className="border-t border-border shrink-0">
+        {/* Footer */}
+        <footer className="border-t border-primary/30 bg-gradient-to-r from-emerald-900/30 via-background to-teal-900/30 shrink-0">
           <div className="px-4 py-2 text-center text-[10px] text-muted-foreground">
             {mods.length} APK tersedia • AGUNG88 APP STORE
           </div>
         </footer>
-      </div>
 
       {/* Detail Dialog */}
       <DetailDialog
