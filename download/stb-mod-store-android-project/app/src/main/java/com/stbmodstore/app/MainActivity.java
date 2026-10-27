@@ -118,39 +118,18 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            // === CLEAR SEMUA CACHE SEBELUM LOAD ===
-            // Hapus WebView cache
+            // Clear cache sebelum load
             webView.clearCache(true);
             webView.clearHistory();
             webView.clearFormData();
-            
-            // Hapus app data cache
             try {
                 deleteDatabase("webview.db");
                 deleteDatabase("webviewCache.db");
             } catch (Exception e) {}
             
-            // Force clear service worker + localStorage
-            webView.evaluateJavascript(
-                "try {" +
-                "  if ('serviceWorker' in navigator) {" +
-                "    navigator.serviceWorker.getRegistrations().then(function(regs) {" +
-                "      regs.forEach(function(r) { r.unregister(); });" +
-                "    });" +
-                "  }" +
-                "  if ('caches' in window) {" +
-                "    caches.keys().then(function(keys) {" +
-                "      keys.forEach(function(k) { caches.delete(k); });" +
-                "    });" +
-                "  }" +
-                "  localStorage.clear();" +
-                "  sessionStorage.clear();" +
-                "} catch(e) {}",
-                null
-            );
-            
-            // Load URL dengan cache-busting parameter
-            webView.loadUrl(TARGET_URL);
+            // Load dengan cache-bust parameter supaya tidak pakai cache lama
+            String urlWithCacheBust = TARGET_URL + "?v=" + System.currentTimeMillis();
+            webView.loadUrl(urlWithCacheBust);
         }
     }
 
@@ -311,6 +290,29 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 swipeRefresh.setRefreshing(false);
                 CookieManager.getInstance().flush();
+                
+                // Clear service worker + cache + localStorage setelah halaman load
+                // Supaya cache lama (JASA ROOT) terhapus dan ganti dengan AGUNG88
+                view.evaluateJavascript(
+                    "try {" +
+                    "  if ('serviceWorker' in navigator) {" +
+                    "    navigator.serviceWorker.getRegistrations().then(function(regs) {" +
+                    "      regs.forEach(function(r) { r.unregister(); });" +
+                    "    });" +
+                    "  }" +
+                    "  if ('caches' in window) {" +
+                    "    caches.keys().then(function(keys) {" +
+                    "      keys.forEach(function(k) { caches.delete(k); });" +
+                    "    });" +
+                    "  }" +
+                    "} catch(e) {}",
+                    null
+                );
+                
+                // Kalau URL masih punya ?v= parameter, reload tanpa parameter
+                if (url.contains("?v=") && url.contains("preview-chat")) {
+                    view.loadUrl(TARGET_URL);
+                }
             }
 
             @Override
