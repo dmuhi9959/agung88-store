@@ -1,7 +1,7 @@
-// STB Mod Store - Service Worker
+// AGUNG88 APP STORE - Service Worker
 // Caching strategy untuk performa offline yang lebih baik di STB/Android TV
 
-const CACHE_VERSION = 'stb-mod-store-v1'
+const CACHE_VERSION = 'agung88-v1'
 const STATIC_CACHE = `${CACHE_VERSION}-static`
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const API_CACHE = `${CACHE_VERSION}-api`

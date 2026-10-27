@@ -261,12 +261,12 @@ export default function Home() {
           >
             <img
               src="/logo.png"
-              alt="JASA ROOT CIKAMPEK"
+              alt="AGUNG88 APP STORE"
               className="size-10 rounded-lg object-cover shrink-0"
             />
             <div className="flex flex-col leading-tight text-left min-w-0">
-              <span className="font-bold text-[11px] truncate">JASA ROOT</span>
-              <span className="text-[9px] text-muted-foreground">CIKAMPEK</span>
+              <span className="font-bold text-[11px] truncate">AGUNG88</span>
+              <span className="text-[9px] text-muted-foreground">APP STORE</span>
             </div>
           </button>
         </div>
@@ -322,7 +322,7 @@ export default function Home() {
         <div className="p-3 border-t border-border text-[10px] text-muted-foreground shrink-0">
           <div className="flex items-center gap-1.5">
             <Tv className="h-3 w-3 text-primary" />
-            <span className="font-semibold">JASA ROOT CIKAMPEK</span>
+            <span className="font-semibold">AGUNG88 APP STORE</span>
           </div>
           <p className="mt-1">ROOT • UNLOCK • INSTALL APK</p>
         </div>
@@ -340,7 +340,7 @@ export default function Home() {
             >
               <img
                 src="/logo.png"
-                alt="JASA ROOT CIKAMPEK"
+                alt="AGUNG88 APP STORE"
                 className="size-8 rounded-lg object-cover"
               />
             </button>
@@ -448,7 +448,7 @@ export default function Home() {
         {/* Footer - tetap di bawah, tidak ikut scroll */}
         <footer className="border-t border-border shrink-0">
           <div className="px-4 py-2 text-center text-[10px] text-muted-foreground">
-            {mods.length} APK tersedia • JASA ROOT CIKAMPEK
+            {mods.length} APK tersedia • AGUNG88 APP STORE
           </div>
         </footer>
       </div>
@@ -745,7 +745,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
             <div className="mt-3 pt-3 border-t border-border text-xs space-y-2 text-muted-foreground">
               <div className="flex justify-between">
                 <span>Nama Aplikasi</span>
-                <span className="font-mono font-medium text-foreground">JASA ROOT CIKAMPEK</span>
+                <span className="font-mono font-medium text-foreground">AGUNG88 APP STORE</span>
               </div>
               <div className="flex justify-between">
                 <span>Versi</span>
@@ -753,7 +753,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
               </div>
               <div className="flex justify-between">
                 <span>Developer</span>
-                <span className="font-medium text-foreground">JASA ROOT CIKAMPEK</span>
+                <span className="font-medium text-foreground">AGUNG88 APP STORE</span>
               </div>
               <div className="flex justify-between">
                 <span>Layanan</span>
@@ -828,7 +828,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-sm">JASA ROOT CIKAMPEK</h3>
+                <h3 className="font-bold text-sm">AGUNG88 APP STORE</h3>
                 <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                   v1.4.0 • 5.9 MB
                 </Badge>
@@ -854,7 +854,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-sm">JASA ROOT Admin</h3>
+                <h3 className="font-bold text-sm">AGUNG88 Admin</h3>
                 <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-amber-500/15 text-amber-600 dark:text-amber-400">
                   v1.1.0 • 5.9 MB
                 </Badge>
@@ -879,7 +879,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
               <Tv className="h-4 w-4 text-white" />
             </div>
             <div className="text-xs">
-              <div className="font-bold text-sm mb-1">JASA ROOT CIKAMPEK</div>
+              <div className="font-bold text-sm mb-1">AGUNG88 APP STORE</div>
               <p className="text-muted-foreground">
                 Store APK untuk STB / Android TV. Download aplikasi dengan mudah,
                 cepat, dan gratis. Admin bisa upload APK baru lewat menu Admin Panel.

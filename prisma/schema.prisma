@@ -37,3 +37,16 @@ model Mod {
   @@index([stbType])
   @@index([featured])
 }
+
+model Activation {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  deviceInfo String   @default("")
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  @@index([code])
+  @@index([used])
+}

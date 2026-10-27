@@ -1,7 +1,7 @@
 {
-  "name": "JASA ROOT CIKAMPEK - Store APK",
-  "short_name": "JASA ROOT",
-  "description": "Store APK untuk STB/Android TV. Root • Unlock • Install APK. Download ROM, IPTV, Launcher, Codec untuk B860H, IndiBox, Evictrio, Mi Box, Android TV.",
+  "name": "AGUNG88 APP STORE",
+  "short_name": "AGUNG88",
+  "description": "AGUNG88 APP STORE - Download APK untuk STB/Android TV. Streaming, IPTV, Movies, Live TV.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -13,7 +13,6 @@
   "lang": "id",
   "dir": "ltr",
   "categories": ["shopping", "utilities", "entertainment"],
-  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -40,12 +39,6 @@
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-152x152.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
@@ -54,12 +47,6 @@
     {
       "src": "/icons/icon-256x256.png",
       "sizes": "256x256",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-384x384.png",
-      "sizes": "384x384",
       "type": "image/png",
       "purpose": "any"
     },
@@ -80,28 +67,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/icons/icon-monochrome-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "monochrome"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Upload Mod",
-      "short_name": "Upload",
-      "description": "Upload mod STB baru ke store",
-      "url": "/?view=upload",
-      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
-    },
-    {
-      "name": "Mod Saya",
-      "short_name": "Saya",
-      "description": "Lihat dan kelola mod yang sudah Anda upload",
-      "url": "/?view=my-uploads",
-      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     }
   ]
 }
