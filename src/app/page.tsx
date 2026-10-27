@@ -292,16 +292,17 @@ export default function Home() {
       <header className="border-b border-primary/30 bg-gradient-to-r from-emerald-900/40 via-background to-teal-900/40 shrink-0">
         <div className="flex h-14 items-center gap-2 sm:gap-3 px-3 sm:px-5">
           {/* Logo + Nama App */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="size-9 sm:size-10 rounded-lg overflow-hidden ring-2 ring-primary/40 shadow-md">
+          <div className="flex items-center gap-2 shrink-0" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: '0' }}>
+            <div className="size-9 sm:size-10 rounded-lg overflow-hidden ring-2 ring-primary/40 shadow-md" style={{ width: '36px', height: '36px', borderRadius: '8px', overflow: 'hidden', border: '2px solid #10b981' }}>
               <img
                 src="/logo.png"
                 alt="AGUNG88 APP STORE"
                 className="w-full h-full object-cover"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </div>
-            <div className="flex flex-col leading-tight min-w-0">
-              <span className="font-bold text-xs sm:text-sm truncate text-foreground">
+            <div className="flex flex-col leading-tight min-w-0" style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="font-bold text-xs sm:text-sm truncate text-foreground" style={{ fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 AGUNG88
               </span>
               <span className="text-[9px] sm:text-[10px] text-primary/80 hidden sm:block">
