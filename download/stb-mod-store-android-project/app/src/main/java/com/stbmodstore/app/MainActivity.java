@@ -118,24 +118,38 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            // Clear WebView cache + service worker supaya tidak load halaman lama
+            // === CLEAR SEMUA CACHE SEBELUM LOAD ===
+            // Hapus WebView cache
             webView.clearCache(true);
             webView.clearHistory();
-            // Force clear service worker registrations di WebView
+            webView.clearFormData();
+            
+            // Hapus app data cache
+            try {
+                deleteDatabase("webview.db");
+                deleteDatabase("webviewCache.db");
+            } catch (Exception e) {}
+            
+            // Force clear service worker + localStorage
             webView.evaluateJavascript(
-                "if ('serviceWorker' in navigator) {" +
-                "  navigator.serviceWorker.getRegistrations().then(function(regs) {" +
-                "    regs.forEach(function(r) { r.unregister(); });" +
-                "  });" +
-                "}" +
-                "if ('caches' in window) {" +
-                "  caches.keys().then(function(keys) {" +
-                "    keys.forEach(function(k) { caches.delete(k); });" +
-                "  });" +
-                "}" +
-                "localStorage.clear();",
+                "try {" +
+                "  if ('serviceWorker' in navigator) {" +
+                "    navigator.serviceWorker.getRegistrations().then(function(regs) {" +
+                "      regs.forEach(function(r) { r.unregister(); });" +
+                "    });" +
+                "  }" +
+                "  if ('caches' in window) {" +
+                "    caches.keys().then(function(keys) {" +
+                "      keys.forEach(function(k) { caches.delete(k); });" +
+                "    });" +
+                "  }" +
+                "  localStorage.clear();" +
+                "  sessionStorage.clear();" +
+                "} catch(e) {}",
                 null
             );
+            
+            // Load URL dengan cache-busting parameter
             webView.loadUrl(TARGET_URL);
         }
     }
@@ -251,6 +265,7 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("SetJavaScriptEnabled")
     private void configureWebView() {
         WebSettings settings = webView.getSettings();
+        // === SETTINGS WAJIB UNTUK CSS + JS ===
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
@@ -261,10 +276,18 @@ public class MainActivity extends AppCompatActivity {
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        // === FORCE NO CACHE - selalu ambil dari server ===
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setAllowFileAccessFromFileURLs(false);
         settings.setAllowUniversalAccessFromFileURLs(false);
+        // === SETTINGS UNTUK ANDROID 6 (API 23) ===
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            settings.setAllowFileAccessFromFileURLs(true);
+            settings.setAllowUniversalAccessFromFileURLs(true);
+        }
+        // Set default text encoding
+        settings.setDefaultTextEncodingName("UTF-8");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
