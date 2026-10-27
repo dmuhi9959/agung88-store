@@ -118,19 +118,46 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            // Clear cache sebelum load
+            // === HAPUS SEMUA DATA WEBVIEW SECARA RADIKAL ===
+            // 1. Clear WebView cache
             webView.clearCache(true);
             webView.clearHistory();
             webView.clearFormData();
+            
+            // 2. Hapus database WebView
             try {
                 deleteDatabase("webview.db");
                 deleteDatabase("webviewCache.db");
             } catch (Exception e) {}
             
-            // Load dengan cache-bust parameter supaya tidak pakai cache lama
-            String urlWithCacheBust = TARGET_URL + "?v=" + System.currentTimeMillis();
+            // 3. Hapus folder cache app (paling agresif)
+            try {
+                File cacheDir = getCacheDir();
+                if (cacheDir.exists()) {
+                    deleteDir(cacheDir);
+                }
+                File appCacheDir = getExternalCacheDir();
+                if (appCacheDir != null && appCacheDir.exists()) {
+                    deleteDir(appCacheDir);
+                }
+            } catch (Exception e) {}
+            
+            // 4. Load URL dengan cache-bust parameter
+            String urlWithCacheBust = TARGET_URL + "?t=" + System.currentTimeMillis();
             webView.loadUrl(urlWithCacheBust);
         }
+    }
+
+    // Helper untuk hapus folder rekursif
+    private boolean deleteDir(File dir) {
+        if (dir.isDirectory()) {
+            String[] children = dir.list();
+            for (String child : children) {
+                boolean success = deleteDir(new File(dir, child));
+                if (!success) return false;
+            }
+        }
+        return dir.delete();
     }
 
     private void setupUI() {
