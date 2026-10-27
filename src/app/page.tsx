@@ -33,6 +33,10 @@ export default function Home() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authChecking, setAuthChecking] = useState(true)
+  const [isDesktop, setIsDesktop] = useState(false)
+  const [isActivated, setIsActivated] = useState(false)
+  const [activationChecked, setActivationChecked] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, { percent: number; loaded: number; total: number }>>({})
 
   const fetchMods = useCallback(async () => {
     setLoading(true)
@@ -72,23 +76,56 @@ export default function Home() {
     checkAuth()
   }, [fetchMods, checkAuth])
 
-  // Auto-switch to admin view jika URL pakai ?admin=1 (untuk APK store-admin terpisah)
+  // Deteksi device: PC vs mobile/TV
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const detect = () => {
+      const ua = navigator.userAgent
+      const hasMobileKeyword = /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)
+      const hasTVKeyword = /TV|Leanback|HbbTV|SmartTV|BRAVIA|Roku|AFT|NETRANGE/i.test(ua)
+      const isMobile = hasMobileKeyword && !hasTVKeyword
+      const isTV = hasTVKeyword
+      const isPC = !isMobile && !isTV
+      setIsDesktop(isPC)
+    }
+    detect()
+    window.addEventListener('resize', detect)
+    return () => window.removeEventListener('resize', detect)
+  }, [])
+
+  // Cek activation status dari localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const activated = localStorage.getItem('stb_activation_code')
+      if (activated) setIsActivated(true)
+    } catch {}
+    setActivationChecked(true)
+  }, [])
+
+  // Auto-switch admin view jika ?admin=1
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
-      if (params.get('admin') === '1') {
-        setView('admin')
-      }
+      if (params.get('admin') === '1') setView('admin')
     }
   }, [])
+
+  // Auto-focus ke card APK pertama setelah mods dimuat
+  useEffect(() => {
+    if (view === 'store' && mods.length > 0 && !loading) {
+      const timer = setTimeout(() => {
+        const firstCard = document.querySelector('[role="button"][tabindex="0"]') as HTMLElement
+        if (firstCard) firstCard.focus()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [view, mods, loading])
 
   // Refetch when view changes or after auth update
   useEffect(() => {
     if (view === 'store') fetchMods()
   }, [view, fetchMods])
-
-  // Download progress tracker per mod (untuk progress bar di card)
-  const [downloadProgress, setDownloadProgress] = useState<Record<string, { percent: number; loaded: number; total: number }>>({})
 
   const handleDownload = useCallback(async (mod: Mod) => {
     // Trigger download counter first (tidak blocking)
