@@ -1,0 +1,692 @@
+     1→package com.stbmodstore.app;
+     2→
+     3→import android.annotation.SuppressLint;
+     4→import android.app.DownloadManager;
+     5→import android.content.BroadcastReceiver;
+     6→import android.content.Context;
+     7→import android.content.Intent;
+     8→import android.content.IntentFilter;
+     9→import android.database.Cursor;
+    10→import android.graphics.Color;
+    11→import android.net.ConnectivityManager;
+    12→import android.net.NetworkInfo;
+    13→import android.net.Uri;
+    14→import android.os.Build;
+    15→import android.os.Bundle;
+    16→import android.os.Environment;
+    17→import android.os.Handler;
+    18→import android.os.Looper;
+    19→import android.view.KeyEvent;
+    20→import android.view.View;
+    21→import android.webkit.CookieManager;
+    22→import android.webkit.DownloadListener;
+    23→import android.webkit.GeolocationPermissions;
+    24→import android.webkit.PermissionRequest;
+    25→import android.webkit.URLUtil;
+    26→import android.webkit.ValueCallback;
+    27→import android.webkit.WebChromeClient;
+    28→import android.webkit.WebResourceRequest;
+    29→import android.webkit.WebSettings;
+    30→import android.webkit.WebView;
+    31→import android.webkit.WebViewClient;
+    32→import android.widget.FrameLayout;
+    33→import android.widget.LinearLayout;
+    34→import android.widget.ProgressBar;
+    35→import android.widget.TextView;
+    36→import android.widget.Toast;
+    37→
+    38→import androidx.activity.result.ActivityResultLauncher;
+    39→import androidx.activity.result.contract.ActivityResultContracts;
+    40→import androidx.appcompat.app.AppCompatActivity;
+    41→import androidx.core.content.FileProvider;
+    42→import androidx.core.view.WindowCompat;
+    43→import androidx.core.view.WindowInsetsControllerCompat;
+    44→import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+    45→
+    46→import java.io.File;
+    47→
+    48→/**
+    49→ * MainActivity - WebView wrapper untuk STB Mod Store
+    50→ *
+    51→ * Download APK tanpa WRITE_EXTERNAL_STORAGE permission:
+    52→ * - File disimpan di app-specific external storage (Android/data/<package>/files/Download/STB Mod Store/)
+    53→ * - Tidak butuh permission sama sekali
+    54→ * - File di-install via FileProvider (otomatis trigger installer)
+    55→ */
+    56→public class MainActivity extends AppCompatActivity {
+    57→
+    58→    private static final String TARGET_URL = "https://preview-chat-8b701ad6-a5bc-4a95-9c56-ea87c9141bb1.space-z.ai/";
+    59→    private static final String FILE_PROVIDER_AUTHORITY = "com.stbmodstore.app.fileprovider";
+    60→    private static final String DOWNLOAD_SUBDIR = "STB Mod Store";
+    61→
+    62→    private WebView webView;
+    63→    private SwipeRefreshLayout swipeRefresh;
+    64→    private ProgressBar progressBar;
+    65→    private TextView offlineView;
+    66→
+    67→    // Download progress UI
+    68→    private LinearLayout downloadProgressContainer;
+    69→    private ProgressBar downloadProgressBar;
+    70→    private TextView downloadProgressText;
+    71→    private TextView downloadProgressPercent;
+    72→
+    73→    private ValueCallback<Uri[]> filePathCallback;
+    74→    private ActivityResultLauncher<Intent> fileChooserLauncher;
+    75→    private long currentDownloadId = -1;
+    76→    private Handler downloadProgressHandler;
+    77→    private Runnable downloadProgressRunnable;
+    78→
+    79→    @Override
+    80→    protected void onCreate(Bundle savedInstanceState) {
+    81→        super.onCreate(savedInstanceState);
+    82→
+    83→        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+    84→        WindowInsetsControllerCompat controller = new WindowInsetsControllerCompat(getWindow(), getDecorView());
+    85→        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+    86→
+    87→        setupUI();
+    88→
+    89→        fileChooserLauncher = registerForActivityResult(
+    90→            new ActivityResultContracts.StartActivityForResult(),
+    91→            result -> {
+    92→                if (filePathCallback == null) return;
+    93→                Uri[] results = null;
+    94→                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+    95→                    Intent data = result.getData();
+    96→                    if (data.getClipData() != null) {
+    97→                        int count = data.getClipData().getItemCount();
+    98→                        results = new Uri[count];
+    99→                        for (int i = 0; i < count; i++) {
+   100→                            results[i] = data.getClipData().getItemAt(i).getUri();
+   101→                        }
+   102→                    } else if (data.getData() != null) {
+   103→                        results = new Uri[]{ data.getData() };
+   104→                    }
+   105→                }
+   106→                filePathCallback.onReceiveValue(results);
+   107→                filePathCallback = null;
+   108→            }
+   109→        );
+   110→
+   111→        // Register receiver for download complete
+   112→        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+   113→            registerReceiver(onDownloadComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_NOT_EXPORTED);
+   114→        } else {
+   115→            registerReceiver(onDownloadComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+   116→        }
+   117→
+   118→        if (savedInstanceState != null) {
+   119→            webView.restoreState(savedInstanceState);
+   120→        } else {
+   121→            // === HAPUS SEMUA DATA WEBVIEW SECARA RADIKAL ===
+   122→            // 1. Clear WebView cache
+   123→            webView.clearCache(true);
+   124→            webView.clearHistory();
+   125→            webView.clearFormData();
+   126→            
+   127→            // 2. Hapus database WebView
+   128→            try {
+   129→                deleteDatabase("webview.db");
+   130→                deleteDatabase("webviewCache.db");
+   131→            } catch (Exception e) {}
+   132→            
+   133→            // 3. Hapus folder cache app (paling agresif)
+   134→            try {
+   135→                File cacheDir = getCacheDir();
+   136→                if (cacheDir.exists()) {
+   137→                    deleteDir(cacheDir);
+   138→                }
+   139→                File appCacheDir = getExternalCacheDir();
+   140→                if (appCacheDir != null && appCacheDir.exists()) {
+   141→                    deleteDir(appCacheDir);
+   142→                }
+   143→            } catch (Exception e) {}
+   144→            
+   145→            // 4. Load URL dengan cache-bust parameter
+   146→            String urlWithCacheBust = TARGET_URL + "?t=" + System.currentTimeMillis();
+   147→            webView.loadUrl(urlWithCacheBust);
+   148→        }
+   149→    }
+   150→
+   151→    // Helper untuk hapus folder rekursif
+   152→    private boolean deleteDir(File dir) {
+   153→        if (dir.isDirectory()) {
+   154→            String[] children = dir.list();
+   155→            for (String child : children) {
+   156→                boolean success = deleteDir(new File(dir, child));
+   157→                if (!success) return false;
+   158→            }
+   159→        }
+   160→        return dir.delete();
+   161→    }
+   162→
+   163→    private void setupUI() {
+   164→        FrameLayout root = new FrameLayout(this);
+   165→        root.setLayoutParams(new FrameLayout.LayoutParams(
+   166→            FrameLayout.LayoutParams.MATCH_PARENT,
+   167→            FrameLayout.LayoutParams.MATCH_PARENT
+   168→        ));
+   169→
+   170→        swipeRefresh = new SwipeRefreshLayout(this);
+   171→        swipeRefresh.setLayoutParams(new FrameLayout.LayoutParams(
+   172→            FrameLayout.LayoutParams.MATCH_PARENT,
+   173→            FrameLayout.LayoutParams.MATCH_PARENT
+   174→        ));
+   175→        swipeRefresh.setOnRefreshListener(() -> webView.reload());
+   176→
+   177→        webView = new WebView(this);
+   178→        webView.setLayoutParams(new FrameLayout.LayoutParams(
+   179→            FrameLayout.LayoutParams.MATCH_PARENT,
+   180→            FrameLayout.LayoutParams.MATCH_PARENT
+   181→        ));
+   182→        webView.setId(View.generateViewId());
+   183→        swipeRefresh.addView(webView);
+   184→
+   185→        // Progress bar for page loading
+   186→        progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+   187→        FrameLayout.LayoutParams pbParams = new FrameLayout.LayoutParams(
+   188→            FrameLayout.LayoutParams.MATCH_PARENT, 8
+   189→        );
+   190→        progressBar.setLayoutParams(pbParams);
+   191→        progressBar.setMax(100);
+   192→        progressBar.setProgress(0);
+   193→        progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#10b981")));
+   194→        progressBar.setVisibility(View.GONE);
+   195→
+   196→        // Download progress container (bottom)
+   197→        downloadProgressContainer = new LinearLayout(this);
+   198→        downloadProgressContainer.setOrientation(LinearLayout.VERTICAL);
+   199→        FrameLayout.LayoutParams dpcParams = new FrameLayout.LayoutParams(
+   200→            FrameLayout.LayoutParams.MATCH_PARENT,
+   201→            FrameLayout.LayoutParams.WRAP_CONTENT
+   202→        );
+   203→        dpcParams.gravity = android.view.Gravity.BOTTOM;
+   204→        downloadProgressContainer.setLayoutParams(dpcParams);
+   205→        downloadProgressContainer.setPadding(16, 12, 16, 12);
+   206→        downloadProgressContainer.setBackgroundColor(Color.parseColor("#F0FDFA"));
+   207→        downloadProgressContainer.setElevation(8);
+   208→
+   209→        downloadProgressText = new TextView(this);
+   210→        downloadProgressText.setText("Mengunduh APK...");
+   211→        downloadProgressText.setTextColor(Color.parseColor("#065F46"));
+   212→        downloadProgressText.setTextSize(12);
+   213→        downloadProgressText.setTypeface(downloadProgressText.getTypeface(), android.graphics.Typeface.BOLD);
+   214→        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+   215→            LinearLayout.LayoutParams.MATCH_PARENT,
+   216→            LinearLayout.LayoutParams.WRAP_CONTENT
+   217→        );
+   218→        textParams.bottomMargin = 4;
+   219→        downloadProgressText.setLayoutParams(textParams);
+   220→        downloadProgressContainer.addView(downloadProgressText);
+   221→
+   222→        downloadProgressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+   223→        LinearLayout.LayoutParams dpbParams = new LinearLayout.LayoutParams(
+   224→            LinearLayout.LayoutParams.MATCH_PARENT,
+   225→            12
+   226→        );
+   227→        downloadProgressBar.setLayoutParams(dpbParams);
+   228→        downloadProgressBar.setMax(100);
+   229→        downloadProgressBar.setProgress(0);
+   230→        downloadProgressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#10B981")));
+   231→        downloadProgressContainer.addView(downloadProgressBar);
+   232→
+   233→        downloadProgressPercent = new TextView(this);
+   234→        downloadProgressPercent.setText("0% • 0 MB / 0 MB");
+   235→        downloadProgressPercent.setTextColor(Color.parseColor("#065F46"));
+   236→        downloadProgressPercent.setTextSize(10);
+   237→        LinearLayout.LayoutParams percentParams = new LinearLayout.LayoutParams(
+   238→            LinearLayout.LayoutParams.MATCH_PARENT,
+   239→            LinearLayout.LayoutParams.WRAP_CONTENT
+   240→        );
+   241→        percentParams.topMargin = 2;
+   242→        downloadProgressPercent.setLayoutParams(percentParams);
+   243→        downloadProgressContainer.addView(downloadProgressPercent);
+   244→
+   245→        downloadProgressContainer.setVisibility(View.GONE);
+   246→
+   247→        // Offline view
+   248→        offlineView = new TextView(this);
+   249→        FrameLayout.LayoutParams offParams = new FrameLayout.LayoutParams(
+   250→            FrameLayout.LayoutParams.MATCH_PARENT,
+   251→            FrameLayout.LayoutParams.MATCH_PARENT
+   252→        );
+   253→        offlineView.setLayoutParams(offParams);
+   254→        offlineView.setText("Tidak ada koneksi internet.\n\nPastikan STB terhubung ke WiFi/LAN, lalu buka aplikasi lagi.");
+   255→        offlineView.setTextColor(Color.parseColor("#94a3b8"));
+   256→        offlineView.setTextSize(16);
+   257→        offlineView.setGravity(android.view.Gravity.CENTER);
+   258→        offlineView.setBackgroundColor(Color.parseColor("#0f172a"));
+   259→        offlineView.setVisibility(View.GONE);
+   260→
+   261→        root.addView(swipeRefresh);
+   262→        root.addView(progressBar);
+   263→        root.addView(offlineView);
+   264→        root.addView(downloadProgressContainer);
+   265→
+   266→        setContentView(root);
+   267→
+   268→        configureWebView();
+   269→    }
+   270→
+   271→    @SuppressLint("SetJavaScriptEnabled")
+   272→    private void configureWebView() {
+   273→        WebSettings settings = webView.getSettings();
+   274→        // === SETTINGS WAJIB UNTUK CSS + JS ===
+   275→        settings.setJavaScriptEnabled(true);
+   276→        settings.setDomStorageEnabled(true);
+   277→        settings.setDatabaseEnabled(true);
+   278→        settings.setAllowFileAccess(true);
+   279→        settings.setAllowContentAccess(true);
+   280→        settings.setMediaPlaybackRequiresUserGesture(false);
+   281→        settings.setLoadWithOverviewMode(true);
+   282→        settings.setUseWideViewPort(true);
+   283→        settings.setSupportZoom(false);
+   284→        settings.setBuiltInZoomControls(false);
+   285→        // === FORCE NO CACHE - selalu ambil dari server ===
+   286→        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+   287→        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+   288→        settings.setAllowFileAccessFromFileURLs(false);
+   289→        settings.setAllowUniversalAccessFromFileURLs(false);
+   290→        // === SETTINGS UNTUK ANDROID 6 (API 23) ===
+   291→        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+   292→            settings.setAllowFileAccessFromFileURLs(true);
+   293→            settings.setAllowUniversalAccessFromFileURLs(true);
+   294→        }
+   295→        // Set default text encoding
+   296→        settings.setDefaultTextEncodingName("UTF-8");
+   297→
+   298→        CookieManager.getInstance().setAcceptCookie(true);
+   299→        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+   300→
+   301→        webView.setWebViewClient(new WebViewClient() {
+   302→            @Override
+   303→            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+   304→                Uri uri = request.getUrl();
+   305→                String host = uri.getHost();
+   306→                if (host != null && (host.contains("space-z.ai") || host.contains("pwabuilder.com"))) {
+   307→                    return false;
+   308→                }
+   309→                Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+   310→                if (intent.resolveActivity(getPackageManager()) != null) {
+   311→                    startActivity(intent);
+   312→                }
+   313→                return true;
+   314→            }
+   315→
+   316→            @Override
+   317→            public void onPageFinished(WebView view, String url) {
+   318→                swipeRefresh.setRefreshing(false);
+   319→                CookieManager.getInstance().flush();
+   320→                
+   321→                // Clear service worker + cache + localStorage setelah halaman load
+   322→                // Supaya cache lama (JASA ROOT) terhapus dan ganti dengan AGUNG88
+   323→                view.evaluateJavascript(
+   324→                    "try {" +
+   325→                    "  if ('serviceWorker' in navigator) {" +
+   326→                    "    navigator.serviceWorker.getRegistrations().then(function(regs) {" +
+   327→                    "      regs.forEach(function(r) { r.unregister(); });" +
+   328→                    "    });" +
+   329→                    "  }" +
+   330→                    "  if ('caches' in window) {" +
+   331→                    "    caches.keys().then(function(keys) {" +
+   332→                    "      keys.forEach(function(k) { caches.delete(k); });" +
+   333→                    "    });" +
+   334→                    "  }" +
+   335→                    "} catch(e) {}",
+   336→                    null
+   337→                );
+   338→                
+   339→                // Kalau URL masih punya ?v= parameter, reload tanpa parameter
+   340→                if (url.contains("?v=") && url.contains("preview-chat")) {
+   341→                    view.loadUrl(TARGET_URL);
+   342→                }
+   343→            }
+   344→
+   345→            @Override
+   346→            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+   347→                if (!isOnline()) {
+   348→                    webView.setVisibility(View.GONE);
+   349→                    offlineView.setVisibility(View.VISIBLE);
+   350→                }
+   351→            }
+   352→        });
+   353→
+   354→        webView.setWebChromeClient(new WebChromeClient() {
+   355→            @Override
+   356→            public void onProgressChanged(WebView view, int newProgress) {
+   357→                if (newProgress < 100) {
+   358→                    progressBar.setVisibility(View.VISIBLE);
+   359→                    progressBar.setProgress(newProgress);
+   360→                } else {
+   361→                    progressBar.setVisibility(View.GONE);
+   362→                }
+   363→            }
+   364→
+   365→            @Override
+   366→            public void onPermissionRequest(final PermissionRequest request) {
+   367→                runOnUiThread(() -> {
+   368→                    String[] resources = request.getResources();
+   369→                    String[] granted = new String[resources.length];
+   370→                    System.arraycopy(resources, 0, granted, 0, resources.length);
+   371→                    request.grant(granted);
+   372→                });
+   373→            }
+   374→
+   375→            @Override
+   376→            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+   377→                callback.invoke(origin, true, false);
+   378→            }
+   379→
+   380→            @Override
+   381→            public boolean onShowFileChooser(WebView webView,
+   382→                                            ValueCallback<Uri[]> filePathCallback,
+   383→                                            FileChooserParams fileChooserParams) {
+   384→                if (MainActivity.this.filePathCallback != null) {
+   385→                    MainActivity.this.filePathCallback.onReceiveValue(null);
+   386→                }
+   387→                MainActivity.this.filePathCallback = filePathCallback;
+   388→
+   389→                Intent intent = fileChooserParams.createIntent();
+   390→                intent.addCategory(Intent.CATEGORY_OPENABLE);
+   391→                if (fileChooserParams.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) {
+   392→                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+   393→                }
+   394→
+   395→                try {
+   396→                    fileChooserLauncher.launch(intent);
+   397→                } catch (Exception e) {
+   398→                    MainActivity.this.filePathCallback = null;
+   399→                    return false;
+   400→                }
+   401→                return true;
+   402→            }
+   403→        });
+   404→
+   405→        // === DOWNLOAD LISTENER - Handle APK download ===
+   406→        webView.setDownloadListener(new DownloadListener() {
+   407→            @Override
+   408→            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+   409→                startDownloadWithManager(url, userAgent, contentDisposition, mimetype, contentLength);
+   410→            }
+   411→        });
+   412→    }
+   413→
+   414→    /**
+   415→     * Start download menggunakan Android DownloadManager
+   416→     * - File disimpan di app-specific external storage (TIDAK butuh permission)
+   417→     * - Lokasi: Android/data/com.stbmodstore.app/files/Download/STB Mod Store/
+   418→     * - Auto-install via FileProvider setelah selesai
+   419→     */
+   420→    @SuppressLint("Range")
+   421→    private void startDownloadWithManager(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+   422→        try {
+   423→            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+   424→            request.setMimeType(mimetype != null ? mimetype : "application/octet-stream");
+   425→            request.setTitle("STB Mod Store - Download APK");
+   426→            request.setDescription("Sedang mengunduh APK...");
+   427→            request.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI | DownloadManager.Request.NETWORK_MOBILE);
+   428→            request.setAllowedOverRoaming(true);
+   429→            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
+   430→
+   431→            // Cookies (untuk auth admin)
+   432→            String cookies = CookieManager.getInstance().getCookie(url);
+   433→            if (cookies != null) {
+   434→                request.addRequestHeader("Cookie", cookies);
+   435→            }
+   436→            if (userAgent != null) {
+   437→                request.addRequestHeader("User-Agent", userAgent);
+   438→            }
+   439→
+   440→            // Tentukan filename
+   441→            String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
+   442→            if (!fileName.toLowerCase().endsWith(".apk") && !fileName.toLowerCase().endsWith(".zip") && !fileName.toLowerCase().endsWith(".rar")) {
+   443→                fileName += ".apk";
+   444→            }
+   445→
+   446→            // === SIMPAN DI APP-SPECIFIC STORAGE (TIDAK BUTUH PERMISSION) ===
+   447→            // Lokasi: /Android/data/com.stbmodstore.app/files/Download/STB Mod Store/
+   448→            File destDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+   449→            if (destDir == null) {
+   450→                destDir = getFilesDir(); // fallback ke internal storage
+   451→            }
+   452→            File stbDir = new File(destDir, DOWNLOAD_SUBDIR);
+   453→            if (!stbDir.exists()) {
+   454→                boolean created = stbDir.mkdirs();
+   455→                if (!created && !stbDir.exists()) {
+   456→                    stbDir = destDir; // fallback ke parent dir
+   457→                }
+   458→            }
+   459→            File destFile = new File(stbDir, fileName);
+   460→
+   461→            // Hapus file lama dengan nama yang sama (kalau ada)
+   462→            if (destFile.exists()) {
+   463→                destFile.delete();
+   464→            }
+   465→
+   466→            // Set destination via URI (file://)
+   467→            request.setDestinationUri(Uri.fromFile(destFile));
+   468→
+   469→            // Enqueue download
+   470→            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+   471→            currentDownloadId = dm.enqueue(request);
+   472→
+   473→            // Tampilkan progress UI
+   474→            long totalBytes = contentLength > 0 ? contentLength : 0;
+   475→            showDownloadProgress(fileName, totalBytes);
+   476→
+   477→            Toast.makeText(this, "Memulai download: " + fileName, Toast.LENGTH_SHORT).show();
+   478→
+   479→        } catch (SecurityException e) {
+   480→            Toast.makeText(this, "Gagal download (permission denied): " + e.getMessage(), Toast.LENGTH_LONG).show();
+   481→            e.printStackTrace();
+   482→        } catch (Exception e) {
+   483→            Toast.makeText(this, "Gagal memulai download: " + e.getMessage(), Toast.LENGTH_LONG).show();
+   484→            e.printStackTrace();
+   485→        }
+   486→    }
+   487→
+   488→    /**
+   489→     * Tampilkan progress bar download di bawah aplikasi
+   490→     */
+   491→    private void showDownloadProgress(String fileName, long totalBytes) {
+   492→        runOnUiThread(() -> {
+   493→            downloadProgressText.setText("Mengunduh: " + fileName);
+   494→            downloadProgressText.setTextColor(Color.parseColor("#065F46"));
+   495→            downloadProgressBar.setProgress(0);
+   496→            downloadProgressBar.setIndeterminate(false);
+   497→            if (totalBytes > 0) {
+   498→                downloadProgressPercent.setText("0% • 0 MB / " + formatBytes(totalBytes));
+   499→            } else {
+   500→                downloadProgressPercent.setText("0% • Mengunduh...");
+   501→            }
+   502→            downloadProgressContainer.setVisibility(View.VISIBLE);
+   503→        });
+   504→
+   505→        downloadProgressHandler = new Handler(Looper.getMainLooper());
+   506→        downloadProgressRunnable = new Runnable() {
+   507→            @Override
+   508→            public void run() {
+   509→                if (currentDownloadId == -1) return;
+   510→                DownloadManager.Query query = new DownloadManager.Query();
+   511→                query.setFilterById(currentDownloadId);
+   512→                DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+   513→                Cursor cursor = dm.query(query);
+   514→                if (cursor != null && cursor.moveToFirst()) {
+   515→                    int status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS));
+   516→                    if (status == DownloadManager.STATUS_RUNNING) {
+   517→                        int downloaded = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+   518→                        int total = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+   519→                        if (total > 0) {
+   520→                            int percent = (downloaded * 100) / total;
+   521→                            downloadProgressBar.setProgress(percent);
+   522→                            downloadProgressPercent.setText(
+   523→                                percent + "% • " + formatBytes(downloaded) + " / " + formatBytes(total)
+   524→                            );
+   525→                        } else {
+   526→                            downloadProgressBar.setIndeterminate(true);
+   527→                            downloadProgressPercent.setText(formatBytes(downloaded) + " diunduh...");
+   528→                        }
+   529→                    }
+   530→                    cursor.close();
+   531→                }
+   532→                downloadProgressHandler.postDelayed(this, 500);
+   533→            }
+   534→        };
+   535→        downloadProgressHandler.post(downloadProgressRunnable);
+   536→    }
+   537→
+   538→    private String formatBytes(long bytes) {
+   539→        if (bytes < 1024) return bytes + " B";
+   540→        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+   541→        if (bytes < 1024L * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
+   542→        return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+   543→    }
+   544→
+   545→    /**
+   546→     * BroadcastReceiver untuk handle download selesai
+   547→     */
+   548→    private BroadcastReceiver onDownloadComplete = new BroadcastReceiver() {
+   549→        @Override
+   550→        public void onReceive(Context context, Intent intent) {
+   551→            long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+   552→            if (id != currentDownloadId) return;
+   553→
+   554→            if (downloadProgressHandler != null && downloadProgressRunnable != null) {
+   555→                downloadProgressHandler.removeCallbacks(downloadProgressRunnable);
+   556→            }
+   557→
+   558→            // Query status download
+   559→            DownloadManager.Query query = new DownloadManager.Query();
+   560→            query.setFilterById(id);
+   561→            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+   562→            Cursor cursor = dm.query(query);
+   563→
+   564→            if (cursor != null && cursor.moveToFirst()) {
+   565→                @SuppressLint("Range")
+   566→                int status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS));
+   567→                @SuppressLint("Range")
+   568→                String localUriStr = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+   569→
+   570→                if (status == DownloadManager.STATUS_SUCCESSFUL && localUriStr != null) {
+   571→                    // Set progress ke 100%
+   572→                    downloadProgressBar.setProgress(100);
+   573→                    downloadProgressBar.setIndeterminate(false);
+   574→                    downloadProgressText.setText("Download selesai ✓");
+   575→                    downloadProgressText.setTextColor(Color.parseColor("#059669"));
+   576→                    downloadProgressPercent.setText("Lokasi: Android/data/com.stbmodstore.app/files/Download/STB Mod Store/");
+   577→
+   578→                    // === AUTO-INSTALL APK VIA FILEPROVIDER ===
+   579→                    try {
+   580→                        // Parse local file path dari URI
+   581→                        Uri localUri = Uri.parse(localUriStr);
+   582→                        File apkFile = new File(localUri.getPath());
+   583→
+   584→                        if (apkFile.exists()) {
+   585→                            // Pakai FileProvider untuk install (anti FileUriExposedException di Android 7+)
+   586→                            Uri apkContentUri = FileProvider.getUriForFile(
+   587→                                context,
+   588→                                FILE_PROVIDER_AUTHORITY,
+   589→                                apkFile
+   590→                            );
+   591→
+   592→                            Intent installIntent = new Intent(Intent.ACTION_VIEW);
+   593→                            installIntent.setDataAndType(apkContentUri, "application/vnd.android.package-archive");
+   594→                            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+   595→                            installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+   596→                            installIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+   597→
+   598→                            context.startActivity(installIntent);
+   599→                            Toast.makeText(context, "APK siap diinstall. Klik Install.", Toast.LENGTH_LONG).show();
+   600→                        } else {
+   601→                            Toast.makeText(context, "File tidak ditemukan: " + apkFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
+   602→                        }
+   603→                    } catch (Exception e) {
+   604→                        // Fallback: kasih tau user lokasi file
+   605→                        Toast.makeText(context,
+   606→                            "Download selesai. Buka File Manager → Android/data/com.stbmodstore.app/files/Download/STB Mod Store/",
+   607→                            Toast.LENGTH_LONG).show();
+   608→                        e.printStackTrace();
+   609→                    }
+   610→
+   611→                    // Sembunyikan progress setelah 8 detik
+   612→                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+   613→                        downloadProgressContainer.setVisibility(View.GONE);
+   614→                        downloadProgressText.setTextColor(Color.parseColor("#065F46"));
+   615→                    }, 8000);
+   616→
+   617→                } else if (status == DownloadManager.STATUS_FAILED) {
+   618→                    @SuppressLint("Range")
+   619→                    String reason = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_REASON));
+   620→                    downloadProgressText.setText("Download gagal ✗");
+   621→                    downloadProgressText.setTextColor(Color.parseColor("#EF4444"));
+   622→                    downloadProgressPercent.setText("Alasan: " + (reason != null ? reason : "unknown error"));
+   623→
+   624→                    Toast.makeText(context,
+   625→                        "Download gagal. Coba lagi. (Reason: " + reason + ")",
+   626→                        Toast.LENGTH_LONG
+   627→                    ).show();
+   628→
+   629→                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+   630→                        downloadProgressContainer.setVisibility(View.GONE);
+   631→                        downloadProgressText.setTextColor(Color.parseColor("#065F46"));
+   632→                    }, 5000);
+   633→                }
+   634→                cursor.close();
+   635→            }
+   636→            currentDownloadId = -1;
+   637→        }
+   638→    };
+   639→
+   640→    private boolean isOnline() {
+   641→        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+   642→        if (cm == null) return false;
+   643→        NetworkInfo info = cm.getActiveNetworkInfo();
+   644→        return info != null && info.isConnected();
+   645→    }
+   646→
+   647→    @Override
+   648→    public boolean onKeyDown(int keyCode, KeyEvent event) {
+   649→        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
+   650→            webView.goBack();
+   651→            return true;
+   652→        }
+   653→        return super.onKeyDown(keyCode, event);
+   654→    }
+   655→
+   656→    @Override
+   657→    protected void onSaveInstanceState(Bundle outState) {
+   658→        super.onSaveInstanceState(outState);
+   659→        webView.saveState(outState);
+   660→    }
+   661→
+   662→    @Override
+   663→    protected void onResume() {
+   664→        super.onResume();
+   665→        if (offlineView.getVisibility() == View.VISIBLE && isOnline()) {
+   666→            webView.setVisibility(View.VISIBLE);
+   667→            offlineView.setVisibility(View.GONE);
+   668→            webView.reload();
+   669→        }
+   670→    }
+   671→
+   672→    @Override
+   673→    protected void onDestroy() {
+   674→        if (downloadProgressHandler != null && downloadProgressRunnable != null) {
+   675→            downloadProgressHandler.removeCallbacks(downloadProgressRunnable);
+   676→        }
+   677→        try {
+   678→            unregisterReceiver(onDownloadComplete);
+   679→        } catch (Exception e) {
+   680→            // ignore if not registered
+   681→        }
+   682→        if (webView != null) {
+   683→            webView.destroy();
+   684→        }
+   685→        super.onDestroy();
+   686→    }
+   687→
+   688→    private View getDecorView() {
+   689→        return getWindow().getDecorView();
+   690→    }
+   691→}
+   692→

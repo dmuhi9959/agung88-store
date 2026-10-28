@@ -37,6 +37,7 @@ export default function Home() {
   const [isDesktop, setIsDesktop] = useState(false)
   const [isActivated, setIsActivated] = useState(false)
   const [activationChecked, setActivationChecked] = useState(false)
+  const [isAdminUrl, setIsAdminUrl] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<Record<string, { percent: number; loaded: number; total: number }>>({})
 
   const fetchMods = useCallback(async () => {
@@ -94,23 +95,51 @@ export default function Home() {
     return () => window.removeEventListener('resize', detect)
   }, [])
 
-  // Cek activation status dari localStorage
+  // Cek activation status dari localStorage + URL admin param
+  // Dijalankan SEKALI di mount, sebelum render utama
+  // Robust: cek multiple storage keys + cookie (untuk STB yang WebViewnya reset localStorage)
   useEffect(() => {
     if (typeof window === 'undefined') return
+    // Cek URL admin param lebih dulu - skip aktivasi jika ?admin=1
+    const url = new URL(window.location.href)
+    const adminParam = url.searchParams.get('admin') === '1'
+    setIsAdminUrl(adminParam)
+    if (adminParam) {
+      setView('admin')
+      setActivationChecked(true)
+      return
+    }
+    // Cek localStorage untuk kode aktivasi yang sudah divalidasi
+    // Multiple keys untuk resilience (kalau salah satu kehapus)
     try {
-      const activated = localStorage.getItem('stb_activation_code')
+      const keys = ['stb_activation_code', 'agung88_activation_code', 'agung88_activated']
+      let activated = false
+      for (const k of keys) {
+        const v = localStorage.getItem(k)
+        if (v && v !== '') {
+          activated = true
+          break
+        }
+      }
+      // Cek cookie juga sebagai backup
+      if (!activated) {
+        const cookies = document.cookie.split(';')
+        for (const c of cookies) {
+          const [name, value] = c.trim().split('=')
+          if (name === 'stb_activation_code' && value && value !== '') {
+            activated = true
+            // Restore ke localStorage
+            try { localStorage.setItem('stb_activation_code', value) } catch {}
+            break
+          }
+        }
+      }
       if (activated) setIsActivated(true)
     } catch {}
     setActivationChecked(true)
   }, [])
 
-  // Auto-switch admin view jika ?admin=1
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      if (params.get('admin') === '1') setView('admin')
-    }
-  }, [])
+  // Auto-switch admin view jika ?admin=1 - sekarang sudah dihandle di useEffect atas
 
   // Auto-focus ke card APK pertama setelah mods dimuat
   useEffect(() => {
@@ -287,12 +316,29 @@ export default function Home() {
     }
   }
 
-  // Cek admin bypass via URL param (?admin=1 skips activation gate)
-  const isAdminUrl = typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).get('admin') === '1'
+  // Activation gate: 
+  // - Tunggu sampai activationChecked selesai (jangan flash store dulu)
+  // - Kalau belum activated DAN bukan URL admin, tampilkan ActivationView
+  // - Selama checking, tampilkan loading screen (bg hitam)
+  if (!activationChecked) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundImage: 'url(/wallpaper.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        <div className="absolute inset-0 bg-black/70"></div>
+        <div className="relative flex flex-col items-center gap-3">
+          <div className="size-16 rounded-xl overflow-hidden ring-2 ring-primary/60 shadow-lg shadow-primary/30 animate-pulse">
+            <img src="/logo.png" alt="AGUNG88" className="w-full h-full object-cover" />
+          </div>
+          <Loader2 className="h-6 w-6 text-primary animate-spin" />
+          <p className="text-xs text-primary/80">Memuat AGUNG88 APP STORE...</p>
+        </div>
+      </div>
+    )
+  }
 
-  // Activation gate: kalau belum activated DAN bukan URL admin, tampilkan ActivationView
-  if (activationChecked && !isActivated && !isAdminUrl) {
+  if (!isActivated && !isAdminUrl) {
     return (
       <ActivationView
         onActivated={() => {
@@ -755,13 +801,13 @@ function SettingsView({ onBack }: { onBack: () => void }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-sm">AGUNG88 APP STORE</h3>
                 <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                  v1.4.0 • 5.9 MB
+                  v3.0.0 • 5.9 MB
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 APK untuk STB / Android TV. User bisa lihat daftar APK & download.
               </p>
-              <a href="/downloads/jasa-root-cikampek-v1.4.0.apk" download>
+              <a href="/downloads/agung88-app-store-v3.0.0.apk" download>
                 <Button className="w-full mt-3 gap-1.5 bg-primary hover:bg-primary/90" size="sm">
                   <Download className="h-4 w-4" />
                   Download APK Store
@@ -1051,17 +1097,42 @@ function LoginView({
   )
 }
 
-// ============= ACTIVATION VIEW =============
+// ============= ACTIVATION VIEW (FULLSCREEN TV-OPTIMIZED) =============
 
 function ActivationView({ onActivated }: { onActivated: () => void }) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const submitRef = useRef<HTMLButtonElement>(null)
+  const waRef = useRef<HTMLAnchorElement>(null)
+
+  // Auto-focus input field when component mounts
+  useEffect(() => {
+    const t = setTimeout(() => {
+      inputRef.current?.focus()
+    }, 200)
+    return () => clearTimeout(t)
+  }, [])
+
+  // Persist activation aggressively - multiple storages for STB resilience
+  const persistActivation = (codeValue: string) => {
+    const upper = codeValue.toUpperCase()
+    try { localStorage.setItem('stb_activation_code', upper) } catch {}
+    try { localStorage.setItem('agung88_activated', '1') } catch {}
+    try { localStorage.setItem('agung88_activation_code', upper) } catch {}
+    try { localStorage.setItem('activation_timestamp', String(Date.now())) } catch {}
+    // Set cookie as additional backup
+    try {
+      document.cookie = `stb_activation_code=${upper}; max-age=31536000; path=/`
+    } catch {}
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!code.trim()) {
       setError('Masukkan kode aktivasi')
+      inputRef.current?.focus()
       return
     }
     setLoading(true)
@@ -1078,15 +1149,16 @@ function ActivationView({ onActivated }: { onActivated: () => void }) {
       }
       const json = await res.json()
       if (json.success) {
-        try {
-          localStorage.setItem('stb_activation_code', code.trim().toUpperCase())
-        } catch {}
+        persistActivation(code.trim())
         toast.success('Aktivasi berhasil!', {
           description: 'Selamat datang di AGUNG88 APP STORE',
         })
-        onActivated()
+        // Small delay to ensure localStorage is flushed before re-render
+        setTimeout(() => onActivated(), 100)
       } else {
         setError(json.error || 'Kode aktivasi tidak valid')
+        inputRef.current?.focus()
+        inputRef.current?.select()
       }
     } catch (e: any) {
       setError(e.message || 'Gagal terhubung ke server')
@@ -1103,106 +1175,153 @@ function ActivationView({ onActivated }: { onActivated: () => void }) {
     }
   }
 
+  // D-pad navigation between input -> submit -> whatsapp
+  const handleKeyDown = (e: React.KeyboardEvent, current: 'input' | 'submit' | 'wa') => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'Tab') {
+      if (current === 'input') {
+        e.preventDefault()
+        submitRef.current?.focus()
+      } else if (current === 'submit') {
+        e.preventDefault()
+        waRef.current?.focus()
+      }
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      if (current === 'wa') {
+        e.preventDefault()
+        submitRef.current?.focus()
+      } else if (current === 'submit') {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+  }
+
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 py-8 relative"
-      style={{ backgroundImage: 'url(/wallpaper.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+      className="fixed inset-0 w-screen h-screen overflow-hidden flex items-stretch justify-stretch"
+      style={{ backgroundImage: 'url(/wallpaper.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
     >
-      <div className="absolute inset-0 bg-black/70 pointer-events-none"></div>
-      <Card className="relative w-full max-w-md p-6 bg-black/80 border-primary/40 backdrop-blur">
-        {/* Logo */}
-        <div className="flex flex-col items-center text-center mb-5">
-          <div className="size-16 mb-3 rounded-xl overflow-hidden ring-2 ring-primary/60 shadow-lg shadow-primary/30">
+      {/* Dark overlay untuk readability */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/70 to-emerald-950/70 pointer-events-none"></div>
+
+      {/* Content - 2 column layout untuk TV wide screen */}
+      <div className="relative w-full h-full flex flex-col lg:flex-row items-stretch justify-center">
+        {/* LEFT: Branding + Info */}
+        <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 min-h-0">
+          {/* Logo Besar */}
+          <div className="size-24 lg:size-32 mb-4 lg:mb-6 rounded-2xl overflow-hidden ring-4 ring-primary/60 shadow-2xl shadow-primary/40">
             <img src="/logo.png" alt="AGUNG88" className="w-full h-full object-cover" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">AGUNG88 APP STORE</h1>
-          <p className="text-xs text-primary/80 mt-0.5">Aktivasi Perangkat</p>
-        </div>
-
-        {/* Info */}
-        <div className="rounded-lg bg-primary/10 border border-primary/30 p-3 mb-4">
-          <div className="flex items-start gap-2">
-            <Lock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-            <div className="text-xs text-foreground">
-              <p className="font-medium mb-1">Aplikasi memerlukan kode aktivasi</p>
-              <p className="text-muted-foreground">
-                Hubungi admin via WhatsApp untuk mendapatkan kode aktivasi.
-                Setelah aktivasi berhasil, Anda bisa download semua APK mod.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="activation-code" className="text-xs">Kode Aktivasi</Label>
-            <Input
-              id="activation-code"
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="AGUNG88-XXXXXX"
-              autoComplete="off"
-              className="h-11 font-mono uppercase tracking-wider"
-              autoFocus
-            />
-          </div>
-
-          {error && (
-            <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-2.5 text-xs text-destructive flex items-start gap-2">
-              <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            disabled={loading || !code.trim()}
-            className="w-full gap-2 bg-primary hover:bg-primary/90 h-11"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Shield className="h-4 w-4" />
-            )}
-            {loading ? 'Memproses...' : 'Aktivasi Sekarang'}
-          </Button>
-        </form>
-
-        {/* WhatsApp Button */}
-        <a
-          href={getWhatsAppLink()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-4 flex items-center justify-center gap-2 w-full h-11 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium text-sm transition-colors"
-        >
-          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.149-.197.297-.767.967-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.359.101 11.95c0 2.096.547 4.142 1.588 5.945L0 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.581 0 11.94-5.359 11.943-11.95a11.882 11.882 0 00-3.488-8.446z"/>
-          </svg>
-          <span>Minta Kode via WhatsApp</span>
-          <span className="text-xs opacity-80">({ADMIN_WHATSAPP_DISPLAY})</span>
-        </a>
-
-        {/* QR BRImo */}
-        <div className="mt-4 flex flex-col items-center gap-2">
-          <div className="rounded-lg overflow-hidden border border-primary/40 bg-white p-2">
-            <img src="/qr-brimo.png" alt="QR BRImo" className="w-32 h-32 object-contain" />
-          </div>
-          <p className="text-[10px] text-muted-foreground text-center">
-            Scan QR BRImo untuk donasi/aktivasi cepat
+          <h1 className="text-3xl lg:text-5xl font-black text-center text-foreground tracking-tight">
+            AGUNG88
+          </h1>
+          <p className="text-base lg:text-xl text-primary font-semibold mt-1 tracking-widest">
+            APP STORE
           </p>
+
+          <div className="mt-6 lg:mt-10 max-w-md text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/20 border border-primary/40 mb-4">
+              <Lock className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Aktivasi Perangkat Diperlukan</span>
+            </div>
+            <p className="text-sm lg:text-base text-foreground/80 leading-relaxed">
+              Aplikasi store terkunci. Untuk mendapatkan kode aktivasi,
+              hubungi admin melalui WhatsApp. Setelah aktivasi berhasil,
+              Anda dapat mengakses dan download semua APK mod gratis.
+            </p>
+          </div>
+
+          {/* WhatsApp button di kiri (besar untuk TV) */}
+          <a
+            ref={waRef}
+            href={getWhatsAppLink()}
+            target="_blank"
+            rel="noopener noreferrer"
+            tabIndex={0}
+            onKeyDown={(e) => handleKeyDown(e, 'wa')}
+            className="mt-6 lg:mt-8 flex items-center justify-center gap-3 w-full max-w-md h-14 lg:h-16 rounded-xl bg-green-500 hover:bg-green-600 focus-visible:ring-4 focus-visible:ring-green-400/50 focus-visible:outline-none text-white font-bold text-base lg:text-lg transition-colors shadow-lg shadow-green-500/30"
+          >
+            <svg className="h-5 w-5 lg:h-6 lg:w-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.149-.197.297-.767.967-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.359.101 11.95c0 2.096.547 4.142 1.588 5.945L0 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.581 0 11.94-5.359 11.943-11.95a11.882 11.882 0 00-3.488-8.446z"/>
+            </svg>
+            <span>Minta Kode via WhatsApp</span>
+            <span className="text-xs lg:text-sm opacity-90 font-medium">({ADMIN_WHATSAPP_DISPLAY})</span>
+          </a>
         </div>
 
-        {/* Hidden admin bypass - tahan lama logo 5 detik */}
-        <button
-          onClick={handleAdminBypass}
-          className="mt-4 w-full text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
-          tabIndex={-1}
-          aria-label="admin access"
-        >
-          ·
-        </button>
-      </Card>
+        {/* RIGHT: Activation form + QR */}
+        <div className="flex-1 flex flex-col items-center justify-center p-4 lg:p-8 lg:max-w-xl bg-black/40 backdrop-blur-sm border-l border-primary/20">
+          <div className="w-full max-w-sm">
+            <h2 className="text-xl lg:text-2xl font-bold text-center mb-2 text-foreground">
+              Masukkan Kode Aktivasi
+            </h2>
+            <p className="text-xs lg:text-sm text-muted-foreground text-center mb-5">
+              Ketik kode yang Anda dapatkan dari admin
+            </p>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Input
+                  ref={inputRef}
+                  id="activation-code"
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, 'input')}
+                  placeholder="AGUNG88-XXXXXX"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  className="h-14 lg:h-16 text-lg lg:text-xl font-mono uppercase tracking-widest text-center bg-black/60 border-2 border-primary/40 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/30"
+                  autoFocus
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-lg bg-red-500/20 border border-red-500/40 p-3 text-sm text-red-300 flex items-start gap-2 animate-in fade-in">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <Button
+                ref={submitRef}
+                type="submit"
+                disabled={loading || !code.trim()}
+                onKeyDown={(e) => handleKeyDown(e, 'submit')}
+                className="w-full gap-2 bg-primary hover:bg-primary/90 focus-visible:ring-4 focus-visible:ring-primary/40 focus-visible:outline-none h-14 lg:h-16 text-base lg:text-lg font-bold shadow-lg shadow-primary/30"
+              >
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Shield className="h-5 w-5" />
+                )}
+                {loading ? 'Memproses...' : 'Aktivasi Sekarang'}
+              </Button>
+            </form>
+
+            {/* QR BRImo */}
+            <div className="mt-6 lg:mt-8 flex flex-col items-center gap-2">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                Atau Scan QR BRImo untuk Donasi
+              </div>
+              <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-white p-2 shadow-lg">
+                <img src="/qr-brimo.png" alt="QR BRImo" className="w-36 h-36 lg:w-40 lg:h-40 object-contain" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Hidden admin bypass (untuk admin akses tanpa aktivasi) */}
+      <button
+        onClick={handleAdminBypass}
+        className="absolute bottom-1 right-1 size-2 text-transparent hover:text-muted-foreground/30 transition-colors"
+        tabIndex={-1}
+        aria-label="admin access"
+        title="Admin"
+      >
+        ·
+      </button>
     </div>
   )
 }

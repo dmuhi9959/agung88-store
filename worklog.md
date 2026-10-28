@@ -707,3 +707,51 @@ Stage Summary:
 - Files modified:
   * /home/z/my-project/src/app/page.tsx (added ActivationView + ActivationManager + activation gate)
 - Next: User can generate fresh activation codes from admin panel and share via WhatsApp
+
+---
+Task ID: activation-fullscreen-v3
+Agent: Main agent
+Task: Buat tampilan aktivasi full screen + support semua STB + kunci supaya tidak berubah
+
+Work Log:
+- Analyzed previous ActivationView: pakai Card kecil di tengah (max-w-md), font kecil, tidak D-pad friendly
+- Rebuilt ActivationView jadi FULLSCREEN 2-column layout:
+  * LEFT side: Logo AGUNG88 besar (size-32), title "AGUNG88" font 5xl bold, "APP STORE" subtitle, info card, WhatsApp button hijau besar
+  * RIGHT side: Form input kode + tombol aktivasi + QR BRImo, background hitam/40 dengan backdrop blur
+  * Background wallpaper full screen (fixed inset-0 w-screen h-screen)
+  * Gradient overlay dari hitam ke emerald-950
+- TV/STB optimization:
+  * Font besar: text-3xl/5xl untuk title, text-base/xl untuk body
+  * Button tinggi: h-14/h-16 (sebelumnya h-11)
+  * Input field: h-14/h-16 dengan text-lg/xl font-mono uppercase tracking-widest
+  * D-pad navigation support: ArrowUp/Down/Left/Right + Tab untuk pindah antara input -> submit -> WhatsApp
+  * focus-visible ring 4px untuk semua interactive elements
+  * autoCapitalize="characters" + autoFocus input
+- ROBUST activation persistence (supaya tidak hilang lagi):
+  * Multiple storage keys: stb_activation_code, agung88_activated, agung88_activation_code, activation_timestamp
+  * Cookie backup: stb_activation_code (max-age 31536000 = 1 tahun)
+  * Saat cek activation: baca dari semua storage + cookie, restore kalau ada yang hilang
+- Loading screen ditambahkan sebelum activationChecked = true:
+  * Wallpaper background + logo pulse + spinner
+  * Supaya tidak flash store sebelum check selesai (yang bikin "muncul hilang muncul")
+- Built APK v3.0.0 (versionCode 29):
+  * Build success (5911023 bytes / 5.9 MB)
+  * Copied ke download/agung88-app-store-v3.0.0.apk
+  * Copied ke public/downloads/agung88-app-store-v3.0.0.apk
+  * Updated SettingsView: download link ke v3.0.0
+- Files modified:
+  * /home/z/my-project/src/app/page.tsx
+    - Rewritten ActivationView (fullscreen TV-optimized)
+    - Added robust activation persistence (multiple storage + cookie)
+    - Added loading screen before activationChecked
+    - Updated download link ke v3.0.0
+  * /home/z/my-project/download/stb-mod-store-android-project/app/build.gradle (version 3.0.0)
+  * /home/z/my-project/download/agung88-app-store-v3.0.0.apk (NEW)
+  * /home/z/my-project/public/downloads/agung88-app-store-v3.0.0.apk (NEW)
+
+Stage Summary:
+- Tampilan aktivasi sekarang FULLSCREEN, 2-column (TV-friendly)
+- Font besar, button besar, D-pad support
+- Activation state persistent di localStorage + cookie (kalau salah satu hilang, masih bisa restore)
+- Loading screen sebelum activation check (no more flickering)
+- APK Store v3.0.0 ready di /downloads/agung88-app-store-v3.0.0.apk
