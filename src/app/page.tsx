@@ -21,6 +21,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import type { Mod, UploadResult } from '@/lib/types'
+import { getWhatsAppLink, ADMIN_WHATSAPP_DISPLAY } from '@/lib/whatsapp'
 
 type View = 'store' | 'admin' | 'settings'
 
@@ -284,6 +285,22 @@ export default function Home() {
     } catch {
       toast.error('Gagal terhubung ke server')
     }
+  }
+
+  // Cek admin bypass via URL param (?admin=1 skips activation gate)
+  const isAdminUrl = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('admin') === '1'
+
+  // Activation gate: kalau belum activated DAN bukan URL admin, tampilkan ActivationView
+  if (activationChecked && !isActivated && !isAdminUrl) {
+    return (
+      <ActivationView
+        onActivated={() => {
+          setIsActivated(true)
+          setView('store')
+        }}
+      />
+    )
   }
 
   return (
@@ -1034,6 +1051,338 @@ function LoginView({
   )
 }
 
+// ============= ACTIVATION VIEW =============
+
+function ActivationView({ onActivated }: { onActivated: () => void }) {
+  const [code, setCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!code.trim()) {
+      setError('Masukkan kode aktivasi')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/activation/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim() }),
+      })
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server error - API tidak ditemukan')
+      }
+      const json = await res.json()
+      if (json.success) {
+        try {
+          localStorage.setItem('stb_activation_code', code.trim().toUpperCase())
+        } catch {}
+        toast.success('Aktivasi berhasil!', {
+          description: 'Selamat datang di AGUNG88 APP STORE',
+        })
+        onActivated()
+      } else {
+        setError(json.error || 'Kode aktivasi tidak valid')
+      }
+    } catch (e: any) {
+      setError(e.message || 'Gagal terhubung ke server')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAdminBypass = () => {
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      url.searchParams.set('admin', '1')
+      window.location.href = url.toString()
+    }
+  }
+
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center px-4 py-8 relative"
+      style={{ backgroundImage: 'url(/wallpaper.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+    >
+      <div className="absolute inset-0 bg-black/70 pointer-events-none"></div>
+      <Card className="relative w-full max-w-md p-6 bg-black/80 border-primary/40 backdrop-blur">
+        {/* Logo */}
+        <div className="flex flex-col items-center text-center mb-5">
+          <div className="size-16 mb-3 rounded-xl overflow-hidden ring-2 ring-primary/60 shadow-lg shadow-primary/30">
+            <img src="/logo.png" alt="AGUNG88" className="w-full h-full object-cover" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">AGUNG88 APP STORE</h1>
+          <p className="text-xs text-primary/80 mt-0.5">Aktivasi Perangkat</p>
+        </div>
+
+        {/* Info */}
+        <div className="rounded-lg bg-primary/10 border border-primary/30 p-3 mb-4">
+          <div className="flex items-start gap-2">
+            <Lock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div className="text-xs text-foreground">
+              <p className="font-medium mb-1">Aplikasi memerlukan kode aktivasi</p>
+              <p className="text-muted-foreground">
+                Hubungi admin via WhatsApp untuk mendapatkan kode aktivasi.
+                Setelah aktivasi berhasil, Anda bisa download semua APK mod.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="activation-code" className="text-xs">Kode Aktivasi</Label>
+            <Input
+              id="activation-code"
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="AGUNG88-XXXXXX"
+              autoComplete="off"
+              className="h-11 font-mono uppercase tracking-wider"
+              autoFocus
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-2.5 text-xs text-destructive flex items-start gap-2">
+              <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={loading || !code.trim()}
+            className="w-full gap-2 bg-primary hover:bg-primary/90 h-11"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Shield className="h-4 w-4" />
+            )}
+            {loading ? 'Memproses...' : 'Aktivasi Sekarang'}
+          </Button>
+        </form>
+
+        {/* WhatsApp Button */}
+        <a
+          href={getWhatsAppLink()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 flex items-center justify-center gap-2 w-full h-11 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium text-sm transition-colors"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.149-.197.297-.767.967-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.359.101 11.95c0 2.096.547 4.142 1.588 5.945L0 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.581 0 11.94-5.359 11.943-11.95a11.882 11.882 0 00-3.488-8.446z"/>
+          </svg>
+          <span>Minta Kode via WhatsApp</span>
+          <span className="text-xs opacity-80">({ADMIN_WHATSAPP_DISPLAY})</span>
+        </a>
+
+        {/* QR BRImo */}
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <div className="rounded-lg overflow-hidden border border-primary/40 bg-white p-2">
+            <img src="/qr-brimo.png" alt="QR BRImo" className="w-32 h-32 object-contain" />
+          </div>
+          <p className="text-[10px] text-muted-foreground text-center">
+            Scan QR BRImo untuk donasi/aktivasi cepat
+          </p>
+        </div>
+
+        {/* Hidden admin bypass - tahan lama logo 5 detik */}
+        <button
+          onClick={handleAdminBypass}
+          className="mt-4 w-full text-[10px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+          tabIndex={-1}
+          aria-label="admin access"
+        >
+          ·
+        </button>
+      </Card>
+    </div>
+  )
+}
+
+// ============= ACTIVATION MANAGER (admin tool) =============
+
+function ActivationManager() {
+  const [codes, setCodes] = useState<{ id: string; code: string; used: boolean; usedAt: string | null; deviceInfo: string; createdAt: string }[]>([])
+  const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  const fetchCodes = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/activation/list')
+      const json = await res.json()
+      if (json.success) setCodes(json.data || [])
+    } catch {}
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (open) fetchCodes()
+  }, [open, fetchCodes])
+
+  const handleGenerate = async (count: number) => {
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/activation/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success(`${count} kode aktivasi berhasil dibuat`)
+        fetchCodes()
+      } else if (res.status === 403) {
+        toast.error('Sesi admin berakhir. Login ulang.')
+      } else {
+        toast.error(json.error || 'Gagal generate kode')
+      }
+    } catch {
+      toast.error('Gagal terhubung ke server')
+    }
+    setGenerating(false)
+  }
+
+  const copyToClipboard = (code: string) => {
+    navigator.clipboard.writeText(code)
+    toast.success(`Kode ${code} disalin ke clipboard`)
+  }
+
+  const shareWhatsApp = (code: string) => {
+    const link = `https://wa.me/?text=${encodeURIComponent(`Kode aktivasi AGUNG88 APP STORE Anda: ${code}\n\nBuka aplikasi AGUNG88 APP STORE dan masukkan kode ini.`)}`
+    window.open(link, '_blank')
+  }
+
+  const unusedCount = codes.filter((c) => !c.used).length
+
+  return (
+    <Card className="mb-4 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full p-3 flex items-center gap-3 hover:bg-accent/30 transition-colors"
+      >
+        <div className="size-9 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shrink-0">
+          <Shield className="h-4 w-4 text-white" />
+        </div>
+        <div className="flex-1 text-left min-w-0">
+          <div className="text-sm font-semibold">Kelola Kode Aktivasi</div>
+          <div className="text-[10px] text-muted-foreground">
+            {codes.length} total • {unusedCount} belum dipakai
+          </div>
+        </div>
+        <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="border-t border-border p-3 space-y-3">
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={() => handleGenerate(1)}
+              disabled={generating}
+              className="gap-1.5 bg-primary hover:bg-primary/90"
+            >
+              {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              Generate 1
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleGenerate(5)}
+              disabled={generating}
+              className="gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Generate 5
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleGenerate(10)}
+              disabled={generating}
+              className="gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Generate 10
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={fetchCodes}
+              disabled={loading}
+              className="gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+
+          {/* Code list */}
+          {loading ? (
+            <div className="text-center py-4 text-xs text-muted-foreground">Memuat...</div>
+          ) : codes.length === 0 ? (
+            <div className="text-center py-4 text-xs text-muted-foreground">
+              Belum ada kode. Klik generate di atas.
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {codes.map((c) => (
+                <div
+                  key={c.id}
+                  className={`p-2 rounded-lg border flex items-center gap-2 ${c.used ? 'bg-muted/30 border-muted opacity-60' : 'bg-primary/5 border-primary/30'}`}
+                >
+                  <code className={`font-mono text-xs flex-1 ${c.used ? 'line-through' : 'font-bold'}`}>
+                    {c.code}
+                  </code>
+                  {c.used ? (
+                    <Badge variant="secondary" className="text-[10px] h-5 gap-0.5">
+                      <CheckCircle className="h-2.5 w-2.5" />
+                      Dipakai
+                    </Badge>
+                  ) : (
+                    <>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7"
+                        onClick={() => copyToClipboard(c.code)}
+                        title="Copy kode"
+                      >
+                        <Tag className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7 text-green-600 hover:bg-green-500/10"
+                        onClick={() => shareWhatsApp(c.code)}
+                        title="Share via WhatsApp"
+                      >
+                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.149-.197.297-.767.967-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.359.101 11.95c0 2.096.547 4.142 1.588 5.945L0 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.581 0 11.94-5.359 11.943-11.95a11.882 11.882 0 00-3.488-8.446z"/>
+                        </svg>
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 // ============= ADMIN VIEW =============
 
 function AdminView({
@@ -1158,6 +1507,9 @@ function AdminView({
         <Plus className="h-4 w-4" />
         Upload APK Baru
       </Button>
+
+      {/* Activation Code Management */}
+      <ActivationManager />
 
       {/* APK list with actions */}
       <div className="space-y-2">
