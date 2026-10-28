@@ -27,6 +27,9 @@ export type UploadResult = {
   originalName: string
   size: number
   sizeFormatted: string
+  iconExtracted?: boolean
+  iconUrl?: string
+  useChunked?: boolean
 }
 
 export type CreateModInput = {

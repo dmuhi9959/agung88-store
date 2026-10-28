@@ -1312,6 +1312,10 @@ function UploadDialog({
     file: File,
     type: 'mod' | 'icon'
   ): Promise<UploadResult> => {
+    // For APK > 25MB, use chunked upload to bypass gateway limit
+    if (type === 'mod' && file.size > 25 * 1024 * 1024 && file.name.toLowerCase().endsWith('.apk')) {
+      return await uploadFileChunked(file)
+    }
     const fd = new FormData()
     fd.append('file', file)
     fd.append('type', type)
@@ -1325,6 +1329,10 @@ function UploadDialog({
 
     const json = await res.json()
     if (!json.success) {
+      // Special: server says use chunked upload
+      if (json.useChunked && type === 'mod') {
+        return await uploadFileChunked(file)
+      }
       // Handle specific status codes
       if (res.status === 403) {
         throw new Error('Sesi admin berakhir. Silakan login ulang.')
@@ -1338,6 +1346,53 @@ function UploadDialog({
     return json.data
   }
 
+  // Chunked upload for large APK files (up to 500MB)
+  const uploadFileChunked = async (file: File): Promise<UploadResult> => {
+    const CHUNK_SIZE = 20 * 1024 * 1024 // 20MB per chunk
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+    const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const chunk = file.slice(start, end)
+      const fd = new FormData()
+      fd.append('chunk', chunk, `chunk_${i}`)
+      fd.append('uploadId', uploadId)
+      fd.append('chunkIndex', String(i))
+      fd.append('totalChunks', String(totalChunks))
+      fd.append('fileName', file.name)
+
+      const res = await fetch('/api/upload/chunk', { method: 'POST', body: fd })
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Chunk ${i + 1}/${totalChunks} gagal (HTTP ${res.status})`)
+      }
+      const json = await res.json()
+      if (!json.success) {
+        if (res.status === 403) throw new Error('Sesi admin berakhir. Silakan login ulang.')
+        throw new Error(json.error || `Chunk ${i + 1}/${totalChunks} gagal`)
+      }
+    }
+
+    // Merge chunks
+    const mergeRes = await fetch('/api/upload/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uploadId, fileName: file.name, totalChunks }),
+    })
+    const mergeContentType = mergeRes.headers.get('content-type') || ''
+    if (!mergeContentType.includes('application/json')) {
+      throw new Error(`Merge gagal (HTTP ${mergeRes.status})`)
+    }
+    const mergeJson = await mergeRes.json()
+    if (!mergeJson.success) {
+      if (mergeRes.status === 403) throw new Error('Sesi admin berakhir. Silakan login ulang.')
+      throw new Error(mergeJson.error || 'Gagal merge chunks')
+    }
+    return mergeJson.data
+  }
+
   const handleModFile = async (file: File) => {
     setUploadingMod(true)
     try {
@@ -1349,7 +1404,22 @@ function UploadDialog({
         name: p.name || result.originalName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
         fileSize: result.sizeFormatted,
       }))
-      toast.success(`File ${result.originalName} berhasil diunggah`)
+      // If icon auto-extracted from APK, prefill it
+      if (result.iconUrl) {
+        setIconFile({
+          path: result.iconUrl,
+          originalName: 'auto-extracted-icon.png',
+          size: 0,
+          sizeFormatted: '0 B',
+        })
+        toast.success(`APK berhasil diunggah & icon otomatis diekstrak`, {
+          description: result.originalName,
+        })
+      } else {
+        toast.success(`File ${result.originalName} berhasil diunggah`, {
+          description: 'Icon belum terdeteksi - silakan upload manual.',
+        })
+      }
     } catch (e: any) {
       toast.error(e.message || 'Gagal mengunggah file')
     } finally {

@@ -621,3 +621,46 @@ Stage Summary:
   * Android 11+: redirect ke Settings → "Izinkan akses semua file" → toggle ON
   * Setelah allow, user bisa pilih file APK dari File Manager HP untuk upload
 - Sekarang user bisa upload APK lebih dari 7, tidak ada limit (selama disk space cukup)
+
+---
+Task ID: icon-fix-2
+Agent: Main agent
+Task: User reported "icon rb we tv dopamine vork" missing - re-extract APK icons properly
+
+Work Log:
+- Inspected public/uploads/icons/ and found 4 broken icons (970-1296 bytes - transparent placeholder)
+- Investigated APK contents: found obfuscated filenames like res/9n.png, res/Gc.png, res/WB.png
+- Strategy 1 (file-size based): picked `res/WB.png` which was 2048x2048 but ALL transparent (4.7KB placeholder) - WRONG
+- Strategy 2 (smart square-detection): NEW script picks largest SQUARE image with non-transparent content
+  - Dopamine APK: res/9w.png (500x500, 185KB) - actual app icon
+  - RBTV APK: res/Gc.png (256x256, 9.8KB) - actual app icon
+  - Vorx APK: res/mipmap-xxxhdpi/bit_logo_round.webp (192x192, 10KB) - launcher icon
+- Updated scripts/extract_icons.py and created scripts/extract_single_icon.py
+- Re-extracted 3 broken icons (Dopamine, RBTV x2):
+  - Dopamine_TV_1_0_6_189d990a-icon.png: 1296b -> 29954b (real icon)
+  - RBTV__v3_0_323_798700fb-icon.png: 1296b -> 14402b (real icon)
+  - rbtv-v3.0.323-icon.png: 1296b -> 14402b (real icon)
+- Verified all 8 icons now have content (bbox is set, size >5KB)
+
+ALSO FIXED UPLOAD API:
+- User's upload API was missing entirely (route did not exist) - that's why uploads kept failing with 404
+- Created /api/upload/route.ts (single upload, auto-extract icon via Python)
+- Created /api/upload/chunk/route.ts (chunked upload for large APKs)
+- Created /api/upload/merge/route.ts (merge chunks + extract icon)
+- Updated page.tsx uploadFile() to use chunked upload for APK >25MB
+- Updated page.tsx handleModFile() to use auto-extracted icon by default (no manual icon upload needed)
+- Updated src/lib/types.ts UploadResult type to include iconUrl, iconExtracted, useChunked
+
+Stage Summary:
+- All 8 existing APKs now have proper icons extracted (no more 970-byte placeholder)
+- Future uploads will automatically extract icons (no more manual icon upload)
+- Chunked upload (20MB chunks) supports APK up to 500MB
+- Files modified:
+  * /home/z/my-project/scripts/extract_icons.py (improved extraction logic)
+  * /home/z/my-project/scripts/extract_single_icon.py (NEW - for upload API)
+  * /home/z/my-project/src/app/api/upload/route.ts (NEW - was missing)
+  * /home/z/my-project/src/app/api/upload/chunk/route.ts (NEW)
+  * /home/z/my-project/src/app/api/upload/merge/route.ts (NEW)
+  * /home/z/my-project/src/app/page.tsx (chunked upload + auto-icon)
+  * /home/z/my-project/src/lib/types.ts (added iconUrl field)
+- All icons verified healthy (8/8 OK)
