@@ -1781,11 +1781,12 @@ function UploadDialog({
 
   const uploadFile = async (
     file: File,
-    type: 'mod' | 'icon'
+    type: 'mod' | 'icon',
+    onProgress?: (chunk: number, total: number) => void
   ): Promise<UploadResult> => {
-    // For APK > 25MB, use chunked upload to bypass gateway limit
-    if (type === 'mod' && file.size > 25 * 1024 * 1024 && file.name.toLowerCase().endsWith('.apk')) {
-      return await uploadFileChunked(file)
+    // For APK > 4MB (Vercel body limit), use chunked upload
+    if (type === 'mod' && file.size > 4 * 1024 * 1024 && file.name.toLowerCase().endsWith('.apk')) {
+      return await uploadFileChunked(file, onProgress)
     }
     const fd = new FormData()
     fd.append('file', file)
@@ -1802,7 +1803,7 @@ function UploadDialog({
     if (!json.success) {
       // Special: server says use chunked upload
       if (json.useChunked && type === 'mod') {
-        return await uploadFileChunked(file)
+        return await uploadFileChunked(file, onProgress)
       }
       // Handle specific status codes
       if (res.status === 403) {
@@ -1818,8 +1819,8 @@ function UploadDialog({
   }
 
   // Chunked upload for large APK files (up to 500MB)
-  const uploadFileChunked = async (file: File): Promise<UploadResult> => {
-    const CHUNK_SIZE = 20 * 1024 * 1024 // 20MB per chunk
+  const uploadFileChunked = async (file: File, onProgress?: (chunk: number, total: number) => void): Promise<UploadResult> => {
+    const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB per chunk - safe under Vercel 4.5MB limit
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
     const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
@@ -1866,8 +1867,29 @@ function UploadDialog({
 
   const handleModFile = async (file: File) => {
     setUploadingMod(true)
+    // Untuk APK > 4MB, pakai chunked upload dengan progress toast (Vercel-compatible)
+    const isLargeApk = file.size > 4 * 1024 * 1024 && file.name.toLowerCase().endsWith('.apk')
+    let progressToastId: string | number | undefined
+    if (isLargeApk) {
+      const totalChunksEstimate = Math.ceil(file.size / (4 * 1024 * 1024))
+      progressToastId = toast.loading(`Mengunggah APK (${(file.size / 1024 / 1024).toFixed(1)} MB)...`, {
+        description: `Memecah ke ${totalChunksEstimate} chunk × 4MB, mohon tunggu...`,
+        duration: Infinity,
+      })
+    }
     try {
-      const result = await uploadFile(file, 'mod')
+      const result = await uploadFile(file, 'mod', isLargeApk ? (chunk, total) => {
+        if (progressToastId !== undefined) {
+          toast.loading(`Mengunggah chunk ${chunk}/${total}...`, {
+            id: progressToastId,
+            description: `${Math.round((chunk / total) * 100)}% selesai`,
+            duration: Infinity,
+          })
+        }
+      } : undefined)
+      if (progressToastId !== undefined) {
+        toast.dismiss(progressToastId)
+      }
       setModFile(result)
       // Auto-fill form
       setForm((p) => ({
@@ -1892,7 +1914,10 @@ function UploadDialog({
         })
       }
     } catch (e: any) {
-      toast.error(e.message || 'Gagal mengunggah file')
+      if (progressToastId !== undefined) {
+        toast.dismiss(progressToastId)
+      }
+      toast.error(e.message || 'Gagal mengunggah file', { duration: 8000 })
     } finally {
       setUploadingMod(false)
     }

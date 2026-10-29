@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getPublicClient, getAdminClient, modFromDb, modToCamel, STORAGE_BUCKET } from '@/lib/supabase'
 import { isAdmin } from '@/lib/auth'
-import { unlink } from 'fs/promises'
-import { existsSync } from 'fs'
-import path from 'path'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function GET(
   _req: NextRequest,
@@ -11,16 +11,23 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const mod = await db.mod.findUnique({ where: { id } })
-    if (!mod) {
+    const client = getPublicClient()
+    const { data, error } = await client
+      .from('mods')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error || !data) {
       return NextResponse.json(
         { success: false, error: 'Mod tidak ditemukan' },
         { status: 404 }
       )
     }
-    return NextResponse.json({ success: true, data: mod })
+
+    return NextResponse.json({ success: true, data: modToCamel(modFromDb(data)) })
   } catch (error) {
-    console.error('GET /api/mods/[id] error:', error)
+    console.error('[mods/[id] GET] error:', error)
     return NextResponse.json(
       { success: false, error: 'Gagal memuat detail mod' },
       { status: 500 }
@@ -28,7 +35,6 @@ export async function GET(
   }
 }
 
-// PUT - hanya admin
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -44,8 +50,14 @@ export async function PUT(
 
     const { id } = await params
     const body = await req.json()
+    const client = getAdminClient()
 
-    const existing = await db.mod.findUnique({ where: { id } })
+    const { data: existing } = await client
+      .from('mods')
+      .select('*')
+      .eq('id', id)
+      .single()
+
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Mod tidak ditemukan' },
@@ -53,40 +65,46 @@ export async function PUT(
       )
     }
 
-    const updated = await db.mod.update({
-      where: { id },
-      data: {
-        name: body.name ?? existing.name,
-        description: body.description ?? existing.description,
-        version: body.version ?? existing.version,
-        developer: body.developer ?? existing.developer,
-        category: body.category ?? existing.category,
-        stbType: body.stbType ?? existing.stbType,
-        tags: body.tags ?? existing.tags,
-        fileSize: body.fileSize ?? existing.fileSize,
-        fileName: body.fileName ?? existing.fileName,
-        filePath: body.filePath ?? existing.filePath,
-        screenshots: body.screenshots ?? existing.screenshots,
-        changelog: body.changelog ?? existing.changelog,
-        iconUrl: body.iconUrl ?? existing.iconUrl,
-        featured: body.featured ?? existing.featured,
-        published: body.published ?? existing.published,
-      },
-    })
+    const update: any = { updated_at: new Date().toISOString() }
+    if (body.name !== undefined) update.name = String(body.name)
+    if (body.description !== undefined) update.description = String(body.description)
+    if (body.version !== undefined) update.version = String(body.version)
+    if (body.developer !== undefined) update.developer = String(body.developer)
+    if (body.tags !== undefined) update.tags = String(body.tags)
+    if (body.changelog !== undefined) update.changelog = String(body.changelog)
+    if (body.fileSize !== undefined) update.file_size = String(body.fileSize)
+    if (body.fileName !== undefined) update.file_name = String(body.fileName)
+    if (body.filePath !== undefined) update.file_path = String(body.filePath)
+    if (body.iconUrl !== undefined) update.icon_url = String(body.iconUrl)
+    if (body.featured !== undefined) update.featured = Boolean(body.featured)
+    if (body.published !== undefined) update.published = Boolean(body.published)
 
-    return NextResponse.json({ success: true, data: updated })
-  } catch (error) {
-    console.error('PUT /api/mods/[id] error:', error)
+    const { data, error } = await client
+      .from('mods')
+      .update(update)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json(
+        { success: false, error: 'Gagal update: ' + error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data: modToCamel(modFromDb(data)) })
+  } catch (error: any) {
+    console.error('[mods/[id] PUT] error:', error)
     return NextResponse.json(
-      { success: false, error: 'Gagal memperbarui mod' },
+      { success: false, error: error?.message || 'Gagal update mod' },
       { status: 500 }
     )
   }
 }
 
-// DELETE - hanya admin
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -99,43 +117,55 @@ export async function DELETE(
     }
 
     const { id } = await params
-    const existing = await db.mod.findUnique({ where: { id } })
-    if (!existing) {
+    const client = getAdminClient()
+
+    const { data: mod } = await client
+      .from('mods')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (!mod) {
       return NextResponse.json(
         { success: false, error: 'Mod tidak ditemukan' },
         { status: 404 }
       )
     }
 
-    // Delete associated files
-    if (existing.filePath) {
-      const absPath = path.join(process.cwd(), 'public', existing.filePath)
-      if (existsSync(absPath)) {
-        try { await unlink(absPath) } catch {}
-      }
-    }
-    if (existing.screenshots) {
-      const shots = existing.screenshots.split('|').filter(Boolean)
-      for (const s of shots) {
-        const absPath = path.join(process.cwd(), 'public', s)
-        if (existsSync(absPath)) {
-          try { await unlink(absPath) } catch {}
-        }
-      }
-    }
-    if (existing.iconUrl) {
-      const absPath = path.join(process.cwd(), 'public', existing.iconUrl)
-      if (existsSync(absPath)) {
-        try { await unlink(absPath) } catch {}
-      }
+    // Hapus file APK dari Supabase Storage
+    if (mod.file_path) {
+      try {
+        const apkKey = mod.file_path.split('/agung88-store/')[1]
+        if (apkKey) await client.storage.from(STORAGE_BUCKET).remove([apkKey])
+      } catch (e) {}
     }
 
-    await db.mod.delete({ where: { id } })
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('DELETE /api/mods/[id] error:', error)
+    // Hapus icon dari Supabase Storage
+    if (mod.icon_url) {
+      try {
+        const iconKey = mod.icon_url.split('/agung88-store/')[1]
+        if (iconKey) await client.storage.from(STORAGE_BUCKET).remove([iconKey])
+      } catch (e) {}
+    }
+
+    // Hapus record dari database
+    const { error } = await client
+      .from('mods')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      return NextResponse.json(
+        { success: false, error: 'Gagal hapus: ' + error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, message: 'Mod berhasil dihapus' })
+  } catch (error: any) {
+    console.error('[mods/[id] DELETE] error:', error)
     return NextResponse.json(
-      { success: false, error: 'Gagal menghapus mod' },
+      { success: false, error: error?.message || 'Gagal hapus mod' },
       { status: 500 }
     )
   }

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getPublicClient, getAdminClient } from '@/lib/supabase'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,24 +11,53 @@ export async function POST(req: NextRequest) {
     if (!code || typeof code !== 'string') {
       return NextResponse.json({ success: false, error: 'Kode aktivasi wajib diisi' }, { status: 400 })
     }
-    const activation = await db.activation.findFirst({ where: { code: code.trim().toUpperCase() } })
-    if (!activation) {
-      return NextResponse.json({ success: false, error: 'Kode aktivasi tidak valid. Hubungi admin via WhatsApp.' }, { status: 404 })
+
+    const client = getPublicClient()
+    const { data: activation, error } = await client
+      .from('activations')
+      .select('*')
+      .eq('code', code.trim().toUpperCase())
+      .single()
+
+    if (error || !activation) {
+      return NextResponse.json(
+        { success: false, error: 'Kode aktivasi tidak valid. Hubungi admin via WhatsApp.' },
+        { status: 404 }
+      )
     }
+
     if (activation.used) {
-      return NextResponse.json({ success: false, error: 'Kode aktivasi sudah dipakai. Minta kode baru ke admin.' }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: 'Kode aktivasi sudah dipakai. Minta kode baru ke admin.' },
+        { status: 400 }
+      )
     }
-    if (activation.expiresAt && new Date() > activation.expiresAt) {
-      return NextResponse.json({ success: false, error: 'Kode aktivasi sudah kadaluarsa.' }, { status: 400 })
+
+    if (activation.expires_at && new Date() > new Date(activation.expires_at)) {
+      return NextResponse.json(
+        { success: false, error: 'Kode aktivasi sudah kadaluarsa.' },
+        { status: 400 }
+      )
     }
+
     const userAgent = req.headers.get('user-agent') || ''
-    await db.activation.update({
-      where: { id: activation.id },
-      data: { used: true, usedAt: new Date(), deviceInfo: userAgent.substring(0, 200) }
+    const adminClient = getAdminClient()
+    await adminClient
+      .from('activations')
+      .update({
+        used: true,
+        used_at: new Date().toISOString(),
+        device_info: userAgent.substring(0, 200),
+      })
+      .eq('id', activation.id)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Kode aktivasi valid!',
+      data: { code: activation.code },
     })
-    return NextResponse.json({ success: true, message: 'Kode aktivasi valid!', data: { code: activation.code } })
   } catch (error) {
-    console.error('POST /api/activation/verify error:', error)
+    console.error('[activation/verify] error:', error)
     return NextResponse.json({ success: false, error: 'Gagal verifikasi' }, { status: 500 })
   }
 }

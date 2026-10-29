@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { v4 as uuidv4 } from 'uuid'
+import { getPublicClient, getAdminClient, modFromDb, modToCamel } from '@/lib/supabase'
 import { isAdmin } from '@/lib/auth'
+import { v4 as uuidv4 } from 'uuid'
 
 function slugify(text: string): string {
   return text
@@ -15,32 +15,51 @@ function slugify(text: string): string {
     .replace(/-+$/, '')
 }
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const search = searchParams.get('search')
     const limit = searchParams.get('limit')
 
-    const where: any = { published: true }
+    const client = getPublicClient()
+    let query = client
+      .from('mods')
+      .select('*')
+      .eq('published', true)
+      .order('created_at', { ascending: false })
 
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { description: { contains: search } },
-        { tags: { contains: search } },
-        { developer: { contains: search } },
-      ]
+    if (limit) {
+      query = query.limit(parseInt(limit, 10))
     }
 
-    const mods = await db.mod.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      ...(limit ? { take: parseInt(limit, 10) } : {}),
-    })
+    const { data, error } = await query
 
-    return NextResponse.json({ success: true, data: mods })
+    if (error) {
+      console.error('[mods GET] Supabase error:', error)
+      return NextResponse.json(
+        { success: false, error: 'Gagal memuat daftar mod' },
+        { status: 500 }
+      )
+    }
+
+    let mods = data || []
+    if (search) {
+      const lower = search.toLowerCase()
+      mods = mods.filter((m: any) =>
+        m.name?.toLowerCase().includes(lower) ||
+        m.description?.toLowerCase().includes(lower) ||
+        m.tags?.toLowerCase().includes(lower) ||
+        m.developer?.toLowerCase().includes(lower)
+      )
+    }
+
+    const result = mods.map((m: any) => modToCamel(modFromDb(m)))
+    return NextResponse.json({ success: true, data: result })
   } catch (error) {
-    console.error('GET /api/mods error:', error)
+    console.error('[mods GET] error:', error)
     return NextResponse.json(
       { success: false, error: 'Gagal memuat daftar mod' },
       { status: 500 }
@@ -48,10 +67,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST - hanya admin
 export async function POST(req: NextRequest) {
   try {
-    // Check admin access
     const admin = await isAdmin()
     if (!admin) {
       return NextResponse.json(
@@ -61,22 +78,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-
     const {
-      name,
-      description,
-      version,
-      developer,
-      category,
-      stbType,
-      tags,
-      fileSize,
-      fileName,
-      filePath,
-      screenshots,
-      changelog,
-      iconUrl,
-      featured,
+      name, description, version, developer,
+      category, stbType, tags, fileSize, fileName,
+      filePath, screenshots, changelog, iconUrl, featured,
     } = body
 
     if (!name || !description || !version || !developer) {
@@ -87,38 +92,53 @@ export async function POST(req: NextRequest) {
     }
 
     let slug = slugify(name)
-    // Ensure unique slug
-    const existing = await db.mod.findFirst({ where: { slug } })
-    if (existing) {
+    const client = getAdminClient()
+    const { data: existing } = await client
+      .from('mods')
+      .select('id')
+      .eq('slug', slug)
+      .limit(1)
+
+    if (existing && existing.length > 0) {
       slug = `${slug}-${uuidv4().slice(0, 6)}`
     }
 
-    const mod = await db.mod.create({
-      data: {
+    const { data, error } = await client
+      .from('mods')
+      .insert({
         name: String(name),
         slug,
         description: String(description),
         version: String(version),
         developer: String(developer),
         category: category ? String(category) : 'app',
-        stbType: stbType ? String(stbType) : 'android-tv',
+        stb_type: stbType ? String(stbType) : 'android-tv',
         tags: tags ? String(tags) : '',
-        fileSize: fileSize ? String(fileSize) : '',
-        fileName: fileName ? String(fileName) : '',
-        filePath: filePath ? String(filePath) : '',
+        file_size: fileSize ? String(fileSize) : '',
+        file_name: fileName ? String(fileName) : '',
+        file_path: filePath ? String(filePath) : '',
         screenshots: screenshots ? String(screenshots) : '',
         changelog: changelog ? String(changelog) : '',
-        iconUrl: iconUrl ? String(iconUrl) : '',
+        icon_url: iconUrl ? String(iconUrl) : '',
         featured: Boolean(featured),
         published: true,
-      },
-    })
+      })
+      .select()
+      .single()
 
-    return NextResponse.json({ success: true, data: mod })
-  } catch (error) {
-    console.error('POST /api/mods error:', error)
+    if (error) {
+      console.error('[mods POST] Supabase error:', error)
+      return NextResponse.json(
+        { success: false, error: 'Gagal membuat mod baru: ' + error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data: modToCamel(modFromDb(data)) })
+  } catch (error: any) {
+    console.error('[mods POST] error:', error)
     return NextResponse.json(
-      { success: false, error: 'Gagal membuat mod baru' },
+      { success: false, error: error?.message || 'Gagal membuat mod baru' },
       { status: 500 }
     )
   }
