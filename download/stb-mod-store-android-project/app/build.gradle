@@ -10,8 +10,8 @@ android {
         applicationId "com.stbmodstore.app"
         minSdk 21
         targetSdk 29
-        versionCode 32
-        versionName "3.3.0"
+        versionCode 33
+        versionName "4.0.0"
     }
 
     buildTypes {

@@ -43,7 +43,7 @@ import java.io.File;
  */
 public class MainActivity extends Activity {
 
-    private static final String TARGET_URL = "https://preview-chat-8b701ad6-a5bc-4a95-9c56-ea87c9141bb1.space-z.ai/";
+    private static final String TARGET_URL = "https://agung88-store.vercel.app";
     private static final String FILE_PROVIDER_AUTHORITY = "com.stbmodstore.app.fileprovider";
     private static final String DOWNLOAD_SUBDIR = "STB Mod Store";
     private static final int FILE_CHOOSER_REQUEST = 1001;
@@ -248,7 +248,7 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String host = uri.getHost();
-                if (host != null && host.contains("space-z.ai")) {
+                if (host != null && host.contains("vercel.app")) {
                     return false;
                 }
                 Intent intent = new Intent(Intent.ACTION_VIEW, uri);
@@ -276,7 +276,7 @@ public class MainActivity extends Activity {
                     "} catch(e) {}",
                     null
                 );
-                if (url.contains("?v=") && url.contains("preview-chat")) {
+                if (url.contains("?v=") && url.contains("vercel.app")) {
                     view.loadUrl(TARGET_URL);
                 }
             }
