@@ -801,13 +801,13 @@ function SettingsView({ onBack }: { onBack: () => void }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-sm">AGUNG88 APP STORE</h3>
                 <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                  v3.0.0 • 5.9 MB
+                  v3.3.0 • 2.2 MB (Light)
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 APK untuk STB / Android TV. User bisa lihat daftar APK & download.
               </p>
-              <a href="/downloads/agung88-app-store-v3.0.0.apk" download>
+              <a href="/downloads/agung88-app-store-v3.3.0.apk" download>
                 <Button className="w-full mt-3 gap-1.5 bg-primary hover:bg-primary/90" size="sm">
                   <Download className="h-4 w-4" />
                   Download APK Store

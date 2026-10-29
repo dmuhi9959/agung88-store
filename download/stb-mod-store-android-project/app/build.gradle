@@ -10,13 +10,19 @@ android {
         applicationId "com.stbmodstore.app"
         minSdk 21
         targetSdk 29
-        versionCode 29
-        versionName "3.0.0"
+        versionCode 32
+        versionName "3.3.0"
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -27,9 +33,13 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
-    implementation 'androidx.webkit:webkit:1.8.0'
+    // Minimal deps untuk ukuran APK terkecil
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.activity:activity:1.8.2'
+
+    // Exclude kotlin-stdlib-jdk7/jdk8 supaya tidak konflik
+    configurations.all {
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+    }
 }
