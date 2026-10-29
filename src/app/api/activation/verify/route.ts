@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPublicClient, getAdminClient } from '@/lib/supabase'
+import { getAdminClient } from '@/lib/supabase'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Kode aktivasi wajib diisi' }, { status: 400 })
     }
 
-    const client = getPublicClient()
+    // Use admin client (bypass RLS) untuk verifikasi kode
+    const client = getAdminClient()
     const { data: activation, error } = await client
       .from('activations')
       .select('*')
@@ -41,8 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userAgent = req.headers.get('user-agent') || ''
-    const adminClient = getAdminClient()
-    await adminClient
+    await client
       .from('activations')
       .update({
         used: true,
