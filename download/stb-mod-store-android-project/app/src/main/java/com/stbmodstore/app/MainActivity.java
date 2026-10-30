@@ -9,13 +9,14 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.view.Gravity;
 import android.view.View;
-import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.URLUtil;
@@ -36,20 +37,31 @@ import androidx.core.content.FileProvider;
 import java.io.File;
 
 /**
- * MainActivity - Lightweight WebView wrapper for AGUNG88 APP STORE
+ * MainActivity v5.0.0 - UNIVERSAL STB SUPPORT
  *
- * Menggunakan Activity (bukan AppCompatActivity) supaya APK lebih ringan (~2-3 MB).
- * Tidak pakai Material Components, SwipeRefreshLayout, atau lib lain yang berat.
+ * Features:
+ * - WebView fullscreen dengan loading screen
+ * - DownloadManager untuk handle APK install (bypass browser)
+ * - FileProvider untuk auto-install APK tanpa File Manager
+ * - Theme.Black.NoTitleBar.Fullscreen (jalan di SEMUA Android)
+ * - Screen orientation unspecified (ikut sistem)
+ *
+ * Compatible dengan:
+ * - ZTE B860H v2 (Telkom/IndiHome)
+ * - Mayrep STB
+ * - Android TV / Android STB
+ * - Min Android 5.0 (API 21)
  */
 public class MainActivity extends Activity {
 
     private static final String TARGET_URL = "https://agung88-store.vercel.app";
     private static final String FILE_PROVIDER_AUTHORITY = "com.stbmodstore.app.fileprovider";
-    private static final String DOWNLOAD_SUBDIR = "STB Mod Store";
+    private static final String DOWNLOAD_SUBDIR = "AGUNG88";
     private static final int FILE_CHOOSER_REQUEST = 1001;
 
     private WebView webView;
     private ProgressBar progressBar;
+    private FrameLayout loadingScreen;
     private TextView offlineView;
     private LinearLayout downloadProgressContainer;
     private ProgressBar downloadProgressBar;
@@ -65,19 +77,8 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Fullscreen, hide status & nav bars (TV mode)
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN
-        );
-        getWindow().getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        );
+        // Set background color dulu supaya gak transparan
+        getWindow().setBackgroundDrawableResource(android.R.color.background_dark);
 
         setupUI();
 
@@ -91,7 +92,7 @@ public class MainActivity extends Activity {
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            // Clear ALL WebView data aggressively on fresh start
+            // Clear ALL WebView data aggressively
             webView.clearCache(true);
             webView.clearHistory();
             webView.clearFormData();
@@ -105,7 +106,7 @@ public class MainActivity extends Activity {
                 File appCacheDir = getExternalCacheDir();
                 if (appCacheDir != null && appCacheDir.exists()) deleteDir(appCacheDir);
             } catch (Exception e) {}
-            // Load URL with cache-bust parameter
+            // Load URL dengan cache-bust parameter
             String urlWithCacheBust = TARGET_URL + "?t=" + System.currentTimeMillis();
             webView.loadUrl(urlWithCacheBust);
         }
@@ -129,16 +130,95 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
+        root.setBackgroundColor(Color.parseColor("#0a0e1a"));
 
+        // === LOADING SCREEN ===
+        loadingScreen = new FrameLayout(this);
+        loadingScreen.setLayoutParams(new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        loadingScreen.setBackgroundColor(Color.parseColor("#0a0e1a"));
+
+        LinearLayout loadingContainer = new LinearLayout(this);
+        loadingContainer.setOrientation(LinearLayout.VERTICAL);
+        loadingContainer.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams lcParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        lcParams.gravity = Gravity.CENTER;
+        loadingContainer.setLayoutParams(lcParams);
+
+        TextView titleView = new TextView(this);
+        titleView.setText("AGUNG88");
+        titleView.setTextColor(Color.parseColor("#10b981"));
+        titleView.setTextSize(36);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        titleParams.bottomMargin = 8;
+        titleView.setLayoutParams(titleParams);
+        loadingContainer.addView(titleView);
+
+        TextView subtitleView = new TextView(this);
+        subtitleView.setText("APP STORE");
+        subtitleView.setTextColor(Color.parseColor("#94a3b8"));
+        subtitleView.setTextSize(16);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            subtitleView.setLetterSpacing(0.3f);
+        }
+        subtitleView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        subParams.bottomMargin = 32;
+        subtitleView.setLayoutParams(subParams);
+        loadingContainer.addView(subtitleView);
+
+        ProgressBar spinner = new ProgressBar(this);
+        spinner.setLayoutParams(new LinearLayout.LayoutParams(80, 80));
+        spinner.setIndeterminate(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            spinner.getIndeterminateDrawable().setColorFilter(
+                Color.parseColor("#10b981"),
+                android.graphics.PorterDuff.Mode.SRC_IN
+            );
+        }
+        loadingContainer.addView(spinner);
+
+        TextView loadingText = new TextView(this);
+        loadingText.setText("Memuat aplikasi...");
+        loadingText.setTextColor(Color.parseColor("#64748b"));
+        loadingText.setTextSize(12);
+        loadingText.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams ltParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        ltParams.topMargin = 16;
+        loadingText.setLayoutParams(ltParams);
+        loadingContainer.addView(loadingText);
+
+        loadingScreen.addView(loadingContainer);
+        root.addView(loadingScreen);
+
+        // === WEBVIEW ===
         webView = new WebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
         webView.setId(View.generateViewId());
+        webView.setBackgroundColor(Color.parseColor("#0a0e1a"));
+        webView.setVisibility(View.INVISIBLE);
         root.addView(webView);
 
-        // Top progress bar (slim, 6dp)
+        // === TOP PROGRESS BAR ===
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         FrameLayout.LayoutParams pbParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT, 6
@@ -146,28 +226,32 @@ public class MainActivity extends Activity {
         progressBar.setLayoutParams(pbParams);
         progressBar.setMax(100);
         progressBar.setProgress(0);
-        progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#10b981")));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#10b981")));
+        }
         progressBar.setVisibility(View.GONE);
         root.addView(progressBar);
 
-        // Download progress container (bottom)
+        // === DOWNLOAD PROGRESS (BOTTOM) ===
         downloadProgressContainer = new LinearLayout(this);
         downloadProgressContainer.setOrientation(LinearLayout.VERTICAL);
         FrameLayout.LayoutParams dpcParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
-        dpcParams.gravity = android.view.Gravity.BOTTOM;
+        dpcParams.gravity = Gravity.BOTTOM;
         downloadProgressContainer.setLayoutParams(dpcParams);
         downloadProgressContainer.setPadding(16, 12, 16, 12);
         downloadProgressContainer.setBackgroundColor(Color.parseColor("#F0FDFA"));
-        downloadProgressContainer.setElevation(8);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            downloadProgressContainer.setElevation(8);
+        }
 
         downloadProgressText = new TextView(this);
         downloadProgressText.setText("Mengunduh APK...");
         downloadProgressText.setTextColor(Color.parseColor("#065F46"));
         downloadProgressText.setTextSize(12);
-        downloadProgressText.setTypeface(downloadProgressText.getTypeface(), android.graphics.Typeface.BOLD);
+        downloadProgressText.setTypeface(Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
@@ -183,7 +267,9 @@ public class MainActivity extends Activity {
         downloadProgressBar.setLayoutParams(dpbParams);
         downloadProgressBar.setMax(100);
         downloadProgressBar.setProgress(0);
-        downloadProgressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#10B981")));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            downloadProgressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#10B981")));
+        }
         downloadProgressContainer.addView(downloadProgressBar);
 
         downloadProgressPercent = new TextView(this);
@@ -201,7 +287,7 @@ public class MainActivity extends Activity {
         downloadProgressContainer.setVisibility(View.GONE);
         root.addView(downloadProgressContainer);
 
-        // Offline view
+        // === OFFLINE VIEW ===
         offlineView = new TextView(this);
         FrameLayout.LayoutParams offParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -211,7 +297,7 @@ public class MainActivity extends Activity {
         offlineView.setText("Tidak ada koneksi internet.\n\nPastikan STB terhubung ke WiFi/LAN, lalu buka aplikasi lagi.");
         offlineView.setTextColor(Color.parseColor("#94a3b8"));
         offlineView.setTextSize(16);
-        offlineView.setGravity(android.view.Gravity.CENTER);
+        offlineView.setGravity(Gravity.CENTER);
         offlineView.setBackgroundColor(Color.parseColor("#0f172a"));
         offlineView.setVisibility(View.GONE);
         root.addView(offlineView);
@@ -248,7 +334,7 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String host = uri.getHost();
-                if (host != null && host.contains("vercel.app")) {
+                if (host != null && (host.contains("vercel.app") || host.contains("supabase.co") || host.contains("backblazeb2.com"))) {
                     return false;
                 }
                 Intent intent = new Intent(Intent.ACTION_VIEW, uri);
@@ -261,6 +347,10 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
+                if (loadingScreen != null) {
+                    loadingScreen.setVisibility(View.GONE);
+                }
+                webView.setVisibility(View.VISIBLE);
                 view.evaluateJavascript(
                     "try {" +
                     "  if ('serviceWorker' in navigator) {" +
@@ -276,9 +366,6 @@ public class MainActivity extends Activity {
                     "} catch(e) {}",
                     null
                 );
-                if (url.contains("?v=") && url.contains("vercel.app")) {
-                    view.loadUrl(TARGET_URL);
-                }
             }
 
             @Override
@@ -326,7 +413,8 @@ public class MainActivity extends Activity {
             }
         });
 
-        // === DOWNLOAD LISTENER - Handle APK download ===
+        // === DOWNLOAD LISTENER - PENTING UNTUK STB ===
+        // Handle APK download pakai DownloadManager (bypass browser)
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
@@ -366,6 +454,7 @@ public class MainActivity extends Activity {
             request.setDescription("Sedang mengunduh APK...");
             request.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI | DownloadManager.Request.NETWORK_MOBILE);
             request.setAllowedOverRoaming(true);
+            // Visible notification supaya user tau progress
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
 
             String cookies = CookieManager.getInstance().getCookie(url);
@@ -390,6 +479,8 @@ public class MainActivity extends Activity {
             downloadProgressText.setText("Mengunduh: " + fileName);
             downloadProgressContainer.setVisibility(View.VISIBLE);
             trackDownloadProgress(currentDownloadId, contentLength);
+
+            Toast.makeText(this, "Mulai download: " + fileName, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "Gagal mulai download: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
@@ -447,12 +538,14 @@ public class MainActivity extends Activity {
                     if (localUri != null) {
                         File file = new File(Uri.parse(localUri).getPath());
                         if (file.exists()) {
+                            // Auto-install via FileProvider (gak butuh File Manager)
                             Uri apkUri = FileProvider.getUriForFile(this, FILE_PROVIDER_AUTHORITY, file);
                             Intent installIntent = new Intent(Intent.ACTION_VIEW);
                             installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
                             installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                             installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                             startActivity(installIntent);
+                            Toast.makeText(this, "APK siap install. Klik Install.", Toast.LENGTH_LONG).show();
                         }
                     }
                 }

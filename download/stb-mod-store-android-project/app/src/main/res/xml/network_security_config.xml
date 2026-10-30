@@ -1,10 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="false">
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">vercel.app</domain>
+        <domain includeSubdomains="true">agung88-store.vercel.app</domain>
+        <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">wqawkihkvtcnrkgxiujw.supabase.co</domain>
+        <domain includeSubdomains="true">backblazeb2.com</domain>
+        <domain includeSubdomains="true">wa.me</domain>
         <domain includeSubdomains="true">space-z.ai</domain>
-        <domain includeSubdomains="true">preview-chat-8b701ad6-a5bc-4a95-9c56-ea87c9141bb1.space-z.ai</domain>
-        <pin-set expiration="2027-12-31">
-            <!-- TODO: Replace with actual SSL pin if needed -->
-        </pin-set>
     </domain-config>
 </network-security-config>

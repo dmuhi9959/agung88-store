@@ -1,13 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Pakai theme Android native (bukan Material/AppCompat) supaya APK ringan -->
-    <style name="Theme.STBModStore" parent="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
-        <item name="android:statusBarColor">@color/background</item>
-        <item name="android:navigationBarColor">@color/background</item>
+    <style name="Theme.STBModStore" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
         <item name="android:windowBackground">@color/background</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
         <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
     </style>
 </resources>
