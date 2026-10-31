@@ -1818,51 +1818,113 @@ function UploadDialog({
     return json.data
   }
 
-  // Chunked upload for large APK files (up to 500MB)
+  // Direct upload ke Supabase Storage (bypass Vercel - no timeout, no /tmp issue)
+  // Browser upload langsung ke Supabase via signed URL
   const uploadFileChunked = async (file: File, onProgress?: (chunk: number, total: number) => void): Promise<UploadResult> => {
-    const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB per chunk - safe under Vercel 4.5MB limit
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
-    const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * CHUNK_SIZE
-      const end = Math.min(start + CHUNK_SIZE, file.size)
-      const chunk = file.slice(start, end)
-      const fd = new FormData()
-      fd.append('chunk', chunk, `chunk_${i}`)
-      fd.append('uploadId', uploadId)
-      fd.append('chunkIndex', String(i))
-      fd.append('totalChunks', String(totalChunks))
-      fd.append('fileName', file.name)
-
-      const res = await fetch('/api/upload/chunk', { method: 'POST', body: fd })
-      const contentType = res.headers.get('content-type') || ''
-      if (!contentType.includes('application/json')) {
-        throw new Error(`Chunk ${i + 1}/${totalChunks} gagal (HTTP ${res.status})`)
-      }
-      const json = await res.json()
-      if (!json.success) {
-        if (res.status === 403) throw new Error('Sesi admin berakhir. Silakan login ulang.')
-        throw new Error(json.error || `Chunk ${i + 1}/${totalChunks} gagal`)
-      }
+    // Check file size - Supabase free plan limit 50MB
+    if (file.size > 50 * 1024 * 1024) {
+      const sizeMB = (file.size / 1024 / 1024).toFixed(1)
+      throw new Error('File ' + file.name + ' (' + sizeMB + ' MB) melebihi batas upload gratis (50 MB).')
     }
 
-    // Merge chunks
-    const mergeRes = await fetch('/api/upload/merge', {
+    // Step 1: Get signed upload URL dari Vercel API
+    const signedRes = await fetch('/api/upload/signed-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uploadId, fileName: file.name, totalChunks }),
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: 'application/vnd.android.package-archive',
+      }),
     })
-    const mergeContentType = mergeRes.headers.get('content-type') || ''
-    if (!mergeContentType.includes('application/json')) {
-      throw new Error(`Merge gagal (HTTP ${mergeRes.status})`)
+    const signedContentType = signedRes.headers.get('content-type') || ''
+    if (!signedContentType.includes('application/json')) {
+      throw new Error('Gagal dapat signed URL (HTTP ' + signedRes.status + ')')
     }
-    const mergeJson = await mergeRes.json()
-    if (!mergeJson.success) {
-      if (mergeRes.status === 403) throw new Error('Sesi admin berakhir. Silakan login ulang.')
-      throw new Error(mergeJson.error || 'Gagal merge chunks')
+    const signedJson = await signedRes.json()
+    if (!signedJson.success) {
+      if (signedRes.status === 403) throw new Error('Sesi admin berakhir. Silakan login ulang.')
+      throw new Error(signedJson.error || 'Gagal generate signed URL')
     }
-    return mergeJson.data
+
+    const { signedUrl, token, path, publicUrl, contentType } = signedJson.data
+
+    // Step 2: Upload file langsung ke Supabase Storage via signed URL
+    // Authorization header WAJIB dengan token dari signed URL
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', signedUrl, true)
+      xhr.setRequestHeader('Authorization', 'Bearer ' + token)
+      xhr.setRequestHeader('Content-Type', contentType)
+      xhr.setRequestHeader('x-upsert', 'true')
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          const percent = Math.round((e.loaded / e.total) * 100)
+          onProgress(percent, 100)
+        }
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve()
+        } else {
+          const errMsg = xhr.responseText?.substring(0, 300) || 'No response body'
+          reject(new Error('Upload ke Supabase gagal (HTTP ' + xhr.status + '): ' + errMsg))
+        }
+      }
+
+      xhr.onerror = () => {
+        reject(new Error('Network error saat upload ke Supabase. Cek koneksi internet.'))
+      }
+
+      xhr.ontimeout = () => {
+        reject(new Error('Timeout saat upload ke Supabase (10 menit). File mungkin terlalu besar.'))
+      }
+
+      xhr.timeout = 600000 // 10 menit max
+      xhr.send(file)
+    })
+
+    // Step 3: Panggil /api/upload/complete untuk extract icon
+    const completeRes = await fetch('/api/upload/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path,
+        publicUrl,
+        originalName: file.name,
+        size: file.size,
+        contentType,
+      }),
+    })
+    const completeContentType = completeRes.headers.get('content-type') || ''
+    if (!completeContentType.includes('application/json')) {
+      // Upload sukses tapi complete gagal - tetap return path APK
+      return {
+        path: publicUrl,
+        originalName: file.name,
+        size: file.size,
+        sizeFormatted: formatSize(file.size),
+      }
+    }
+    const completeJson = await completeRes.json()
+    if (!completeJson.success) {
+      // Tetap return path APK walau icon extraction gagal
+      return {
+        path: publicUrl,
+        originalName: file.name,
+        size: file.size,
+        sizeFormatted: formatSize(file.size),
+      }
+    }
+    return completeJson.data
+  }
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
   }
 
   const handleModFile = async (file: File) => {
