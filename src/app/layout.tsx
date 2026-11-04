@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import "@/polyfills"; // ES5 polyfills untuk WebView Android lama
 import "./globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
