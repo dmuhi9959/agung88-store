@@ -109,7 +109,121 @@ public class MainActivity extends Activity {
             // Load URL dengan cache-bust parameter
             String urlWithCacheBust = TARGET_URL + "?t=" + System.currentTimeMillis();
             webView.loadUrl(urlWithCacheBust);
+
+            // === TIMEOUT: Kalau 30 detik belum load, tampilkan error message ===
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (loadingScreen != null && loadingScreen.getVisibility() == View.VISIBLE) {
+                        // Loading screen masih visible setelah 30 detik = WebView gagal load
+                        showErrorMessage("Gagal memuat aplikasi. Mungkin WebView STB terlalu lama atau koneksi internet bermasalah.\\n\\nCoba:\\n1. Restart STB\\n2. Update Android System WebView\\n3. Cek koneksi internet\\n\\nAtau hubungi admin via WhatsApp: 089693388835");
+                    }
+                }
+            }, 30000); // 30 detik
         }
+    }
+
+    private void showErrorMessage(String message) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                // Hide loading screen
+                if (loadingScreen != null) loadingScreen.setVisibility(View.GONE);
+                webView.setVisibility(View.GONE);
+
+                // Show error message
+                FrameLayout errorView = new FrameLayout(MainActivity.this);
+                errorView.setLayoutParams(new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ));
+                errorView.setBackgroundColor(Color.parseColor("#0a0e1a"));
+
+                LinearLayout errorContainer = new LinearLayout(MainActivity.this);
+                errorContainer.setOrientation(LinearLayout.VERTICAL);
+                errorContainer.setGravity(Gravity.CENTER);
+                errorContainer.setPadding(60, 0, 60, 0);
+                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                );
+                params.gravity = Gravity.CENTER;
+                errorContainer.setLayoutParams(params);
+
+                // Error icon
+                TextView errorIcon = new TextView(MainActivity.this);
+                errorIcon.setText("⚠️");
+                errorIcon.setTextSize(48);
+                errorIcon.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                iconParams.bottomMargin = 24;
+                errorIcon.setLayoutParams(iconParams);
+                errorContainer.addView(errorIcon);
+
+                // Error title
+                TextView errorTitle = new TextView(MainActivity.this);
+                errorTitle.setText("AGUNG88 APP STORE");
+                errorTitle.setTextColor(Color.parseColor("#10b981"));
+                errorTitle.setTextSize(24);
+                errorTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                errorTitle.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                titleParams.bottomMargin = 16;
+                errorTitle.setLayoutParams(titleParams);
+                errorContainer.addView(errorTitle);
+
+                // Error message
+                TextView errorText = new TextView(MainActivity.this);
+                errorText.setText(message);
+                errorText.setTextColor(Color.parseColor("#94a3b8"));
+                errorText.setTextSize(14);
+                errorText.setGravity(Gravity.CENTER);
+                errorText.setLineSpacing(0, 1.5f);
+                LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                errorText.setLayoutParams(textParams);
+                errorContainer.addView(errorText);
+
+                // Retry button
+                TextView retryBtn = new TextView(MainActivity.this);
+                retryBtn.setText("🔄 Coba Lagi");
+                retryBtn.setTextColor(Color.WHITE);
+                retryBtn.setTextSize(16);
+                retryBtn.setTypeface(Typeface.DEFAULT_BOLD);
+                retryBtn.setGravity(Gravity.CENTER);
+                retryBtn.setPadding(40, 20, 40, 20);
+                LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                btnParams.topMargin = 32;
+                retryBtn.setLayoutParams(btnParams);
+                retryBtn.setBackgroundColor(Color.parseColor("#10b981"));
+                retryBtn.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        // Reload app
+                        if (loadingScreen != null) loadingScreen.setVisibility(View.VISIBLE);
+                        String urlWithCacheBust = TARGET_URL + "?t=" + System.currentTimeMillis();
+                        webView.loadUrl(urlWithCacheBust);
+                        webView.setVisibility(View.INVISIBLE);
+                        errorView.setVisibility(View.GONE);
+                    }
+                });
+                errorContainer.addView(retryBtn);
+
+                errorView.addView(errorContainer);
+                ((FrameLayout) getWindow().getDecorView()).addView(errorView);
+            }
+        });
     }
 
     private boolean deleteDir(File dir) {
