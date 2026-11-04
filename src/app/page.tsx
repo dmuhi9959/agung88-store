@@ -324,7 +324,7 @@ export default function Home() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundImage: 'url(/wallpaper.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+        style={{ backgroundImage: 'url(/wallpaper-dawuan.png?v=20261104)', backgroundSize: 'cover', backgroundPosition: 'center' }}
       >
         <div className="absolute inset-0 bg-black/70"></div>
         <div className="relative flex flex-col items-center gap-3">
@@ -350,7 +350,7 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden relative" style={{ backgroundImage: 'url(/wallpaper.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+    <div className="h-screen flex flex-col overflow-hidden relative" style={{ backgroundImage: 'url(/wallpaper-dawuan.png?v=20261104)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
       <div className="absolute inset-0 bg-black/50 pointer-events-none"></div>
 
       {/* Top bar */}
@@ -1199,7 +1199,7 @@ function ActivationView({ onActivated }: { onActivated: () => void }) {
   return (
     <div
       className="fixed inset-0 w-screen h-screen overflow-hidden flex items-stretch justify-stretch"
-      style={{ backgroundImage: 'url(/wallpaper.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
+      style={{ backgroundImage: 'url(/wallpaper-dawuan.png?v=20261104)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
     >
       {/* Dark overlay untuk readability */}
       <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/70 to-emerald-950/70 pointer-events-none"></div>
