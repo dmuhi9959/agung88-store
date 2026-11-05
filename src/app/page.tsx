@@ -1865,6 +1865,44 @@ function UploadDialog({
     return mergeJson.data
   }
 
+  // Publikasikan mod ke store (dipakai untuk submit manual & auto-publish setelah upload APK).
+  const publishMod = async (
+    values: typeof form,
+    mod: UploadResult,
+    icon: UploadResult | null
+  ): Promise<any> => {
+    setSaving(true)
+    try {
+      const payload = {
+        ...values,
+        category: 'app',
+        stbType: 'android-tv',
+        filePath: mod.path,
+        fileName: mod.originalName,
+        fileSize: mod.sizeFormatted,
+        iconUrl: icon?.path || '',
+      }
+      const res = await fetch('/api/mods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server error HTTP ${res.status}. API tidak ditemukan.`)
+      }
+
+      const json = await res.json()
+      if (!json.success) {
+        throw new Error(json.error || `Gagal publikasi (HTTP ${res.status})`)
+      }
+      return json.data
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleModFile = async (file: File) => {
     setUploadingMod(true)
     // Untuk APK > 4MB, pakai chunked upload dengan progress toast (Vercel-compatible)
@@ -1891,26 +1929,61 @@ function UploadDialog({
         toast.dismiss(progressToastId)
       }
       setModFile(result)
-      // Auto-fill form
-      setForm((p) => ({
-        ...p,
-        name: p.name || result.originalName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
-        fileSize: result.sizeFormatted,
-      }))
-      // If icon auto-extracted from APK, prefill it
-      if (result.iconUrl) {
-        setIconFile({
-          path: result.iconUrl,
-          originalName: 'auto-extracted-icon.png',
-          size: 0,
-          sizeFormatted: '0 B',
-        })
-        toast.success(`APK berhasil diunggah & icon otomatis diekstrak`, {
-          description: result.originalName,
-        })
-      } else {
+
+      const fallbackName = result.originalName
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[-_.]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      const meta = result.meta
+      const autoForm = {
+        name: (meta?.name || fallbackName || 'Aplikasi Android').slice(0, 100),
+        description:
+          meta?.description ||
+          `${meta?.name || fallbackName || 'Aplikasi Android'} versi ${meta?.version || '1.0'} • aplikasi Android untuk TV/STB • ukuran ${result.sizeFormatted}.`,
+        version: meta?.version || '1.0',
+        developer: meta?.developer || 'Tidak diketahui',
+        tags: '',
+        changelog: '',
+        featured: false,
+      }
+
+      setForm((p) => ({ ...p, ...autoForm, fileSize: result.sizeFormatted }))
+
+      const autoIcon: UploadResult | null = result.iconUrl
+        ? {
+            path: result.iconUrl,
+            originalName: `icon.${result.iconUrl.split('.').pop() || 'png'}`,
+            size: 0,
+            sizeFormatted: '0 B',
+          }
+        : null
+      setIconFile(autoIcon)
+
+      const isApk = /\.apk$/i.test(result.originalName) || Boolean(meta)
+
+      if (!isApk) {
         toast.success(`File ${result.originalName} berhasil diunggah`, {
-          description: 'Icon belum terdeteksi - silakan upload manual.',
+          description: 'Lengkapi form lalu tekan Publikasikan.',
+        })
+        return
+      }
+
+      // Langsung publikasikan tanpa perlu isi form manual.
+      try {
+        await publishMod(autoForm, result, autoIcon)
+        toast.success(`✅ ${autoForm.name} ${autoForm.version} langsung masuk store!`, {
+          description: result.iconUrl
+            ? 'Nama, versi, developer, deskripsi & icon terisi otomatis dari APK.'
+            : 'Nama, versi, developer & deskripsi terisi otomatis dari APK.',
+        })
+        resetForm()
+        onSuccess()
+        onOpenChange(false)
+      } catch (err: any) {
+        toast.error('APK sudah terunggah, tapi publikasi otomatis gagal', {
+          description: `${err.message || 'Tekan Publikasikan untuk mencoba lagi.'} Data form sudah terisi otomatis.`,
+          duration: 10000,
         })
       }
     } catch (e: any) {
@@ -1965,66 +2038,18 @@ function UploadDialog({
       })
       return
     }
-    setSaving(true)
     try {
-      const payload = {
-        ...form,
-        category: 'app',
-        stbType: 'android-tv',
-        filePath: modFile.path,
-        fileName: modFile.originalName,
-        fileSize: modFile.sizeFormatted,
-        iconUrl: iconFile?.path || '',
-      }
-      const res = await fetch('/api/mods', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      await publishMod(form, modFile, iconFile)
+      toast.success('APK berhasil dipublikasikan!', {
+        description: `${form.name} ${form.version} sekarang tersedia di store.`,
       })
-
-      // Handle non-JSON response (misal 404 API tidak ada)
-      const contentType = res.headers.get('content-type') || ''
-      if (!contentType.includes('application/json')) {
-        toast.error('Server error - API tidak ditemukan', {
-          description: `HTTP ${res.status}. Hubungi developer.`,
-        })
-        return
-      }
-
-      const json = await res.json()
-      if (json.success) {
-        toast.success('APK berhasil dipublikasikan!', {
-          description: `${form.name} ${form.version} sekarang tersedia di store.`,
-        })
-        resetForm()
-        onSuccess()
-      } else {
-        // Handle specific status codes
-        if (res.status === 403) {
-          toast.error('Sesi admin berakhir', {
-            description: 'Silakan login ulang ke admin panel.',
-          })
-          onOpenChange(false)
-        } else if (res.status === 400) {
-          toast.error('Data tidak valid', {
-            description: json.error || 'Cek field form dan coba lagi.',
-          })
-        } else if (res.status === 413) {
-          toast.error('File terlalu besar', {
-            description: 'Ukuran file melebihi batas 500 MB.',
-          })
-        } else {
-          toast.error('Gagal upload APK', {
-            description: json.error || `HTTP ${res.status}`,
-          })
-        }
-      }
+      resetForm()
+      onSuccess()
+      onOpenChange(false)
     } catch (e: any) {
-      toast.error('Gagal terhubung ke server', {
+      toast.error('Gagal publikasi APK', {
         description: e.message || 'Cek koneksi internet dan coba lagi.',
       })
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -2039,7 +2064,7 @@ function UploadDialog({
                 Upload APK Baru
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Upload file APK + isi metadata untuk dipublikasikan ke store
+                Pilih APK — nama, versi, developer, deskripsi & icon terisi otomatis, lalu langsung masuk store
               </DialogDescription>
             </DialogHeader>
 
