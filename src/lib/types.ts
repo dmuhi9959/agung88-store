@@ -22,6 +22,17 @@ export type Mod = {
   updatedAt: string
 }
 
+export type ApkMeta = {
+  name: string
+  version: string
+  versionCode?: number
+  developer: string
+  description: string
+  packageName: string
+  iconUrl?: string
+  iconExtracted?: boolean
+}
+
 export type UploadResult = {
   path: string
   originalName: string
@@ -30,6 +41,7 @@ export type UploadResult = {
   iconExtracted?: boolean
   iconUrl?: string
   useChunked?: boolean
+  meta?: ApkMeta | null
 }
 
 export type CreateModInput = {
