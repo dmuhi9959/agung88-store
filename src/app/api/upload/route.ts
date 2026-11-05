@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient, STORAGE_BUCKET } from '@/lib/supabase'
 import { isAdmin } from '@/lib/auth'
+import { extractAndStoreApk } from '@/lib/apk-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -89,6 +90,12 @@ export async function POST(req: NextRequest) {
 
     const url = admin.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl
 
+    // APK: ekstrak nama, versi, developer, deskripsi & icon secara otomatis.
+    let meta = null
+    if (type === 'mod' && /\.apk$/i.test(originalName)) {
+      meta = await extractAndStoreApk(buffer, originalName, sizeFormatted(size))
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -96,7 +103,9 @@ export async function POST(req: NextRequest) {
         originalName,
         size,
         sizeFormatted: sizeFormatted(size),
-        iconUrl: '',
+        iconUrl: meta?.iconUrl || '',
+        iconExtracted: meta?.iconExtracted || false,
+        meta,
       },
     })
   } catch (error: any) {
